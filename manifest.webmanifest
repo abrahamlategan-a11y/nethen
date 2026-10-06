@@ -1,0 +1,9 @@
+{
+  "name":"Nethen",
+  "short_name":"Nethen",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#120705",
+  "theme_color":"#120705",
+  "description":"Aubrey's Nethen fighting adventure prototype"
+}
