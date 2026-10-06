@@ -1,9 +1,11 @@
-# NETHEN v0.3
+# NETHEN v0.4
+Aubrey's playable prototype.
 
-Aubrey's playable iPad-friendly prototype.
-
-## v0.3 fixes
-- Creator loads independently from the 3D engine (better iPad Safari compatibility)
-- Character options now make deliberately obvious silhouette/shape changes
-- Cache-busted CSS and JS for GitHub Pages updates
-- Keeps v0.2 combat, meat, inventory and death/retry flow
+New in v0.4:
+- deeper anime-inspired layered character creator
+- full drawing studio before the adventure
+- exact player drawing becomes the monster in the 3D world
+- virtual joystick for iPad
+- monster actively hunts the player
+- brighter Nethen with more lava, embers, rocks and ruins
+- improved combat, meat drops, inventory and death/victory flows
