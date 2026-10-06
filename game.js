@@ -1,4 +1,10 @@
-import * as THREE from 'three';
+let THREE=null;
+let threePromise=null;
+async function ensureThree(){
+  if(THREE) return THREE;
+  if(!threePromise) threePromise=import('https://unpkg.com/three@0.170.0/build/three.module.js').then(m=>THREE=m);
+  return threePromise;
+}
 const $=s=>document.querySelector(s); const $$=s=>[...document.querySelectorAll(s)];
 function show(id){$$('.screen').forEach(x=>x.classList.remove('active'));$(id).classList.add('active')}
 
@@ -41,10 +47,50 @@ const gear={
 };
 let selected={head:0,hair:0,armor:0,shoes:0,weapon:0},currentCat='head';
 
-function applyHeadShape(el,o){el.className='avatarHead';el.style.background=o.color;el.style.borderRadius='';el.style.clipPath='';if(o.shape==='round')el.style.borderRadius='25px 25px 34px 34px';if(o.shape==='horned')el.style.clipPath='polygon(12% 20%,0 0,30% 12%,50% 0,70% 12%,100% 0,88% 20%,100% 45%,90% 100%,10% 100%,0 45%)';if(o.shape==='skull')el.style.clipPath='polygon(12% 0,88% 0,100% 18%,92% 72%,68% 100%,32% 100%,8% 72%,0 18%)';if(o.shape==='block')el.style.borderRadius='4px';if(o.shape==='spirit'){el.style.borderRadius='50% 50% 42% 42%';el.style.transform='scaleX(.9)'}else el.style.transform='';if(o.shape==='mask')el.style.clipPath='polygon(14% 5%,86% 5%,100% 33%,84% 95%,50% 80%,16% 95%,0 33%)'}
-function applyHairShape(el,o){el.className='avatarHair';el.style.background=o.color;el.style.cssText+='';el.removeAttribute('style');el.style.background=o.color;if(o.shape==='none'){el.style.display='none';return}el.style.display='block';if(o.shape==='spikes'){Object.assign(el.style,{left:'34px',top:'20px',width:'112px',height:'56px',clipPath:'polygon(0 100%,10% 32%,25% 72%,38% 0,52% 60%,68% 8%,82% 66%,100% 26%,91% 100%)'})}if(o.shape==='mohawk'){Object.assign(el.style,{left:'72px',top:'7px',width:'34px',height:'70px',clipPath:'polygon(50% 0,100% 100%,0 100%)'})}if(o.shape==='flame'){Object.assign(el.style,{left:'46px',top:'3px',width:'88px',height:'76px',clipPath:'polygon(50% 0,68% 28%,87% 8%,82% 55%,100% 80%,66% 72%,50% 100%,35% 71%,0 82%,18% 52%,12% 15%,38% 30%)'})}if(o.shape==='long'){Object.assign(el.style,{left:'35px',top:'20px',width:'110px',height:'145px',borderRadius:'45px 45px 20px 20px',clipPath:'none'})}if(o.shape==='crown'){Object.assign(el.style,{left:'39px',top:'14px',width:'104px',height:'57px',clipPath:'polygon(0 100%,8% 20%,31% 58%,50% 0,70% 58%,93% 20%,100% 100%)'})}}
-function applyArmorShape(el,o){el.style.background=o.color;el.style.clipPath='';el.style.width='126px';el.style.left='27px';el.style.borderRadius='';$('#shoulderLeft').style.background=$('#shoulderRight').style.background=o.color;$('#shoulderLeft').style.display=$('#shoulderRight').style.display='block';if(o.shape==='plate'){el.style.clipPath='polygon(12% 0,88% 0,100% 18%,88% 100%,12% 100%,0 18%)'}if(o.shape==='heavy'){el.style.width='146px';el.style.left='17px';el.style.borderRadius='14px 14px 4px 4px'}if(o.shape==='tech'){el.style.clipPath='polygon(20% 0,80% 0,100% 35%,82% 100%,18% 100%,0 35%)'}if(o.shape==='bone'){el.style.clipPath='polygon(0 15%,20% 0,50% 14%,80% 0,100% 15%,88% 100%,12% 100%)'}if(o.shape==='shell'){el.style.borderRadius='44px 44px 10px 10px'}if(o.shape==='coat'){el.style.clipPath='polygon(18% 0,82% 0,100% 18%,84% 100%,50% 86%,16% 100%,0 18%)';$('#shoulderLeft').style.display=$('#shoulderRight').style.display='none'}}
-function applyShoes(o){for(const el of [$('#shoeLeft'),$('#shoeRight')]){el.style.background=o.color;el.style.height='27px';el.style.borderRadius='';el.style.clipPath='';if(o.shape==='stomp'){el.style.height='36px';el.style.borderRadius='7px'}if(o.shape==='rocket'){el.style.clipPath='polygon(0 0,80% 0,100% 55%,75% 100%,15% 82%)'}if(o.shape==='claw')el.style.clipPath='polygon(0 0,70% 0,100% 55%,70% 70%,100% 100%,45% 82%,0 100%)';if(o.shape==='slim')el.style.height='18px';if(o.shape==='hoof')el.style.clipPath='polygon(8% 0,92% 0,100% 55%,70% 100%,30% 100%,0 55%)'}}}
+function applyHeadShape(el,o){
+  el.className='avatarHead head-'+o.shape;
+  el.style.background=o.color;
+  let extras='<div class="faceEyes"></div>';
+  if(o.shape==='horned') extras+='<i class="horn hornL"></i><i class="horn hornR"></i>';
+  if(o.shape==='skull') extras+='<i class="skullJaw"></i><i class="skullNose"></i>';
+  if(o.shape==='block') extras+='<i class="golemBrow"></i>';
+  if(o.shape==='spirit') extras+='<i class="spiritTail"></i>';
+  if(o.shape==='mask') extras+='<i class="maskPlate"></i>';
+  el.innerHTML=extras;
+}
+function applyHairShape(el,o){
+  el.className='avatarHair hair-'+o.shape;
+  el.style.background=o.color;
+  el.innerHTML='';
+  if(o.shape==='none'){el.style.display='none';return}
+  el.style.display='block';
+  if(o.shape==='spikes') el.innerHTML='<i></i><i></i><i></i><i></i><i></i>';
+  if(o.shape==='long') el.innerHTML='<i class="longLock left"></i><i class="longLock right"></i>';
+  if(o.shape==='crown') el.innerHTML='<i></i><i></i><i></i>';
+}
+function applyArmorShape(el,o){
+  el.className='avatarBody armor-'+o.shape;
+  el.style.background=o.color;
+  el.innerHTML='';
+  const L=$('#shoulderLeft'),R=$('#shoulderRight');
+  L.className='avatarShoulder left armorShoulder '+o.shape;
+  R.className='avatarShoulder right armorShoulder '+o.shape;
+  L.style.background=R.style.background=o.color;
+  L.style.display=R.style.display=o.shape==='coat'?'none':'block';
+  if(o.shape==='tech') el.innerHTML='<i class="techCore"></i>';
+  if(o.shape==='bone') el.innerHTML='<i class="boneRib r1"></i><i class="boneRib r2"></i><i class="boneRib r3"></i>';
+  if(o.shape==='shell') el.innerHTML='<i class="shellPlate"></i>';
+  if(o.shape==='coat') el.innerHTML='<i class="coatTail left"></i><i class="coatTail right"></i>';
+}
+function applyShoes(o){
+  for(const [idx,el] of [$('#shoeLeft'),$('#shoeRight')].entries()){
+    el.className='avatarShoe '+(idx===0?'left ':'right ')+'shoe-'+o.shape;
+    el.style.background=o.color;
+    el.innerHTML='';
+    if(o.shape==='rocket') el.innerHTML='<i class="rocketFlame"></i>';
+    if(o.shape==='claw') el.innerHTML='<i></i><i></i><i></i>';
+  }
+}
 function renderPreviewWeapon(o){const w=$('#avatarWeapon');w.innerHTML='<span class="weaponPreviewBlade"></span><span class="weaponPreviewGuard"></span><span class="weaponPreviewGrip"></span>';w.className='avatarWeapon '+o.shape;const blade=w.querySelector('.weaponPreviewBlade');const grip=w.querySelector('.weaponPreviewGrip');const guard=w.querySelector('.weaponPreviewGuard');blade.style.background=o.color;if(o.shape==='axe'){blade.style.width='72px';blade.style.height='58px';blade.style.left='2px';blade.style.top='12px';blade.style.clipPath='polygon(18% 0,100% 18%,82% 100%,18% 82%,0 50%)';grip.style.height='105px';grip.style.top='48px';grip.style.left='34px';guard.style.display='none'}else if(o.shape==='hammer'){blade.style.width='76px';blade.style.height='42px';blade.style.left='0';blade.style.top='16px';blade.style.clipPath='none';grip.style.height='108px';grip.style.top='47px';grip.style.left='30px';guard.style.display='none'}else if(o.shape==='spear'){blade.style.width='36px';blade.style.height='54px';blade.style.left='21px';blade.style.clipPath='polygon(50% 0,100% 45%,65% 100%,35% 100%,0 45%)';grip.style.height='130px';grip.style.top='44px';guard.style.display='none'}else if(o.shape==='claw'){w.innerHTML='<span style="position:absolute;left:15px;top:20px;font-size:72px;color:'+o.color+'">爪</span>'} }
 function updateAvatar(){applyHeadShape($('#avatarHead'),gear.head[selected.head]);applyHairShape($('#avatarHair'),gear.hair[selected.hair]);applyArmorShape($('#avatarBody'),gear.armor[selected.armor]);applyShoes(gear.shoes[selected.shoes]);renderPreviewWeapon(gear.weapon[selected.weapon]);}
 function renderOptions(){const q=$('#optionSearch').value.toLowerCase().trim();$('#optionTitle').textContent=currentCat.toUpperCase()+' OPTIONS';const grid=$('#optionGrid');grid.innerHTML='';gear[currentCat].forEach((o,i)=>{if(q&&!o.name.toLowerCase().includes(q))return;const b=document.createElement('button');b.className='optionCard'+(selected[currentCat]===i?' selected':'');b.innerHTML=`<span class="swatch" style="color:${o.color}">${o.icon}</span><small>${o.name}</small>`;b.onclick=()=>{selected[currentCat]=i;renderOptions();updateAvatar()};grid.appendChild(b)})}
@@ -69,7 +115,7 @@ function damagePlayer(amount){if(dead)return;health=Math.max(0,health-amount);if
 function enemyLogic(dt){if(!monster.visible||dead||victory)return;const d=monsterDistance();monster.position.y=1.6+Math.sin(performance.now()*.004)*.12;const dir=player.position.clone().sub(monster.position);dir.y=0;if(enemyState==='idle'){enemyCooldown-=dt;if(d<11&&d>3.3)monster.position.addScaledVector(dir.normalize(),dt*1.8);if(d<=3.8&&enemyCooldown<=0){enemyState='windup';enemyTimer=.8;$('#attackWarning').classList.remove('hidden');$('#message').textContent='BLOCK OR DODGE!';monster.scale.set(1.12,.92,1.12)}}else if(enemyState==='windup'){enemyTimer-=dt;if(enemyTimer<=0){$('#attackWarning').classList.add('hidden');enemyState='strike';enemyTimer=.18;monster.scale.set(.95,1.18,.95);if(d<4.4){if(blocking){damagePlayer(3);special=Math.min(100,special+12);$('#message').textContent='PERFECT BLOCK! +SPECIAL'}else{damagePlayer(18);$('#message').textContent='LAVA SMASH! -18'}}else $('#message').textContent='DODGED!';updateHud()}}else if(enemyState==='strike'){enemyTimer-=dt;if(enemyTimer<=0){enemyState='recover';enemyTimer=.65;monster.scale.set(1,1,1)}}else if(enemyState==='recover'){enemyTimer-=dt;if(enemyTimer<=0){enemyState='idle';enemyCooldown=1.15+Math.random()*.5}}}
 function dodge(){if(dead||victory||dodgeCooldown>0)return;dodgeCooldown=1.2;const right=new THREE.Vector3(1,0,0).applyQuaternion(player.quaternion);player.position.addScaledVector(right,Math.random()>.5?3.1:-3.1);$('#message').textContent='DODGE!';updateHud()}
 $('#attackBtn').onclick=()=>playerAttack(false);$('#specialBtn').onclick=()=>playerAttack(true);$('#blockBtn').onpointerdown=()=>{if(dead)return;blocking=true;$('#blockBtn').classList.add('active')};$('#blockBtn').onpointerup=$('#blockBtn').onpointercancel=()=>{blocking=false;$('#blockBtn').classList.remove('active')};$('#dodgeBtn').onclick=dodge;$('#inventoryBtn').onclick=()=>$('#inventoryPanel').classList.toggle('hidden');$('#inventoryClose').onclick=()=>$('#inventoryPanel').classList.add('hidden');$('#eatMeatBtn').onclick=()=>{if(meat<=0){$('#message').textContent='NO MEAT IN INVENTORY';return}meat--;health=Math.min(100,health+30);special=Math.min(100,special+25);$('#message').textContent='🥩 +30 HEALTH  +25 SPECIAL';updateHud()};
-function toCreator(){cancelAnimationFrame(animId);show('#creatorScreen')}function toMenu(){cancelAnimationFrame(animId);show('#titleScreen')}$('#retryBtn').onclick=initGame;$('#fightAgainBtn').onclick=()=>{const p=$('#victoryPanel');p.classList.remove('showed');initGame()};$('#deathCreatorBtn').onclick=toCreator;$('#victoryCreatorBtn').onclick=toCreator;$('#deathMenuBtn').onclick=toMenu;$('#victoryMenuBtn').onclick=toMenu;$('#enterNethenBtn').onclick=()=>{show('#gameScreen');setTimeout(initGame,40)};
+function toCreator(){cancelAnimationFrame(animId);show('#creatorScreen')}function toMenu(){cancelAnimationFrame(animId);show('#titleScreen')}$('#retryBtn').onclick=initGame;$('#fightAgainBtn').onclick=()=>{const p=$('#victoryPanel');p.classList.remove('showed');initGame()};$('#deathCreatorBtn').onclick=toCreator;$('#victoryCreatorBtn').onclick=toCreator;$('#deathMenuBtn').onclick=toMenu;$('#victoryMenuBtn').onclick=toMenu;$('#enterNethenBtn').onclick=async()=>{ const btn=$('#enterNethenBtn'); const old=btn.textContent; btn.textContent='OPENING NETHEN…'; btn.disabled=true; try{ await ensureThree(); show('#gameScreen'); setTimeout(initGame,40); }catch(e){ console.error(e); alert('The 3D world could not load. Check internet and try again.'); } finally { btn.textContent=old; btn.disabled=false; } };
 function setMove(k,v){keys[k]=v}$$('[data-move]').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();setMove(b.dataset.move,true)});['pointerup','pointercancel','pointerleave'].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();setMove(b.dataset.move,false)}))});addEventListener('keydown',e=>{if(e.key==='w'||e.key==='ArrowUp')keys.forward=true;if(e.key==='s'||e.key==='ArrowDown')keys.back=true;if(e.key==='a'||e.key==='ArrowLeft')keys.left=true;if(e.key==='d'||e.key==='ArrowRight')keys.right=true;if(e.code==='Space')playerAttack(false)});addEventListener('keyup',e=>{if(e.key==='w'||e.key==='ArrowUp')keys.forward=false;if(e.key==='s'||e.key==='ArrowDown')keys.back=false;if(e.key==='a'||e.key==='ArrowLeft')keys.left=false;if(e.key==='d'||e.key==='ArrowRight')keys.right=false});
 function animate(){animId=requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);attackCooldown=Math.max(0,attackCooldown-dt);dodgeCooldown=Math.max(0,dodgeCooldown-dt);if(!dead){const f=new THREE.Vector3(0,0,-1).applyQuaternion(player.quaternion);f.y=0;f.normalize();const r=new THREE.Vector3(1,0,0).applyQuaternion(player.quaternion);r.y=0;r.normalize();const speed=6.2*dt;if(keys.forward)player.position.addScaledVector(f,speed);if(keys.back)player.position.addScaledVector(f,-speed);if(keys.left)player.position.addScaledVector(r,-speed);if(keys.right)player.position.addScaledVector(r,speed);player.position.x=Math.max(-10.5,Math.min(10.5,player.position.x));player.position.z=Math.max(-23,Math.min(21,player.position.z));enemyLogic(dt);collectDrops()}renderer.render(scene,camera)}
 addEventListener('resize',()=>{if(!camera||!renderer)return;camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
