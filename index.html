@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#130906" />
+  <title>NETHEN // v0.1</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <section id="titleScreen" class="screen active">
+      <div class="lavaGlow"></div>
+      <div class="titleWrap">
+        <div class="eyebrow">AUBREY'S WORLD</div>
+        <h1>NETHEN</h1>
+        <p>Build your fighter. Enter the underworld. Survive.</p>
+        <button id="startBtn" class="megaBtn">CREATE FIGHTER</button>
+        <div class="version">PROTOTYPE v0.1</div>
+      </div>
+    </section>
+
+    <section id="creatorScreen" class="screen">
+      <header class="topBar">
+        <button id="creatorBack" class="iconBtn">←</button>
+        <div>
+          <div class="eyebrow">FIGHTER LAB</div>
+          <strong>Build your Nethen fighter</strong>
+        </div>
+        <button id="randomizeBtn" class="chipBtn">RANDOM</button>
+      </header>
+
+      <div class="creatorLayout">
+        <aside class="categoryRail" id="categoryRail">
+          <button data-cat="head" class="cat active"><span>☠</span><small>HEAD</small></button>
+          <button data-cat="hair" class="cat"><span>✦</span><small>HAIR</small></button>
+          <button data-cat="armor" class="cat"><span>⬢</span><small>ARMOR</small></button>
+          <button data-cat="shoes" class="cat"><span>⌁</span><small>SHOES</small></button>
+          <button data-cat="weapon" class="cat"><span>⚔</span><small>WEAPON</small></button>
+        </aside>
+
+        <main class="creatorMain">
+          <div class="previewCard">
+            <div class="fighterPreview" id="fighterPreview">
+              <div class="previewGlow"></div>
+              <div class="avatar" id="avatar">
+                <div class="avatarHair" id="avatarHair"></div>
+                <div class="avatarHead" id="avatarHead"></div>
+                <div class="avatarBody" id="avatarBody"></div>
+                <div class="avatarLeg left"></div><div class="avatarLeg right"></div>
+                <div class="avatarShoe left" id="shoeLeft"></div><div class="avatarShoe right" id="shoeRight"></div>
+                <div class="avatarWeapon" id="avatarWeapon">⚔</div>
+              </div>
+              <div class="fighterName" id="fighterName">EMBER</div>
+            </div>
+          </div>
+
+          <div class="pickerPanel">
+            <div class="searchRow">
+              <input id="optionSearch" placeholder="Search gear e.g. fire sword" autocomplete="off" />
+            </div>
+            <div id="optionTitle" class="optionTitle">HEAD OPTIONS</div>
+            <div id="optionGrid" class="optionGrid"></div>
+          </div>
+        </main>
+      </div>
+
+      <footer class="creatorFooter">
+        <input id="nameInput" maxlength="12" value="EMBER" aria-label="fighter name" />
+        <button id="enterNethenBtn" class="megaBtn">ENTER THE NETHEN →</button>
+      </footer>
+    </section>
+
+    <section id="gameScreen" class="screen">
+      <div id="gameCanvas"></div>
+      <div class="hud topHud">
+        <div class="statCard healthCard"><span>❤</span><div><small>HEALTH</small><b id="healthText">100</b></div><div class="bar"><i id="healthBar"></i></div></div>
+        <div class="statCard specialCard"><span>⚡</span><div><small>SPECIAL</small><b id="specialText">0%</b></div><div class="bar"><i id="specialBar"></i></div></div>
+        <button id="inventoryBtn" class="inventoryBtn">🎒 <span id="meatCount">0</span></button>
+      </div>
+
+      <div id="enemyHud" class="enemyHud hidden"><small>LAVA MONSTER</small><div class="enemyBar"><i id="enemyBar"></i></div></div>
+      <div id="message" class="message">Find the lava monster.</div>
+      <div class="crosshair">+</div>
+
+      <div class="movePad" id="movePad">
+        <button data-move="forward">▲</button>
+        <div><button data-move="left">◀</button><button data-move="back">▼</button><button data-move="right">▶</button></div>
+      </div>
+
+      <div class="actionPad">
+        <button id="attackBtn" class="action attack">ATTACK</button>
+        <button id="blockBtn" class="action block">BLOCK</button>
+        <button id="dodgeBtn" class="action dodge">DODGE</button>
+        <button id="specialBtn" class="action special" disabled>SPECIAL</button>
+      </div>
+
+      <div id="inventoryPanel" class="inventoryPanel hidden">
+        <div class="inventoryHeader"><strong>INVENTORY</strong><button id="inventoryClose">×</button></div>
+        <div class="inventoryItem"><span>🥩</span><div><b>EMBER MEAT</b><small>Eat to heal + charge special</small></div><b id="inventoryMeat">0</b></div>
+        <button id="eatMeatBtn" class="eatBtn">EAT MEAT</button>
+      </div>
+
+      <div id="victoryPanel" class="victoryPanel hidden">
+        <div class="eyebrow">MONSTER DOWN</div>
+        <h2>MEAT DROP!</h2>
+        <p>You defeated the Lava Monster and collected Ember Meat.</p>
+        <button id="playAgainBtn" class="megaBtn">FIGHT AGAIN</button>
+      </div>
+    </section>
+  </div>
+
+  <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js"}}</script>
+  <script type="module" src="game.js"></script>
+</body>
+</html>
