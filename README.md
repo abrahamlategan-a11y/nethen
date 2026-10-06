@@ -1,11 +1,10 @@
-# NETHEN v0.4
-Aubrey's playable prototype.
+# NETHEN v0.5
 
-New in v0.4:
-- deeper anime-inspired layered character creator
-- full drawing studio before the adventure
-- exact player drawing becomes the monster in the 3D world
-- virtual joystick for iPad
-- monster actively hunts the player
-- brighter Nethen with more lava, embers, rocks and ruins
-- improved combat, meat drops, inventory and death/victory flows
+Aubrey's latest playable build.
+
+## New in v0.5
+- much deeper character customisation with more face, brows, mouth, hair, hat, armour, boots and weapon options
+- your drawn monster is turned into a transparent cutout creature instead of a white square
+- the monster now has simple animated limbs and a walking bob so it feels alive
+- faster, more obvious monster pursuit
+- brighter, more active Nethen lighting and extra lava ambience
