@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#130906" />
-  <title>NETHEN // v0.1</title>
+  <title>NETHEN // v0.2</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -19,17 +19,14 @@
         <h1>NETHEN</h1>
         <p>Build your fighter. Enter the underworld. Survive.</p>
         <button id="startBtn" class="megaBtn">CREATE FIGHTER</button>
-        <div class="version">PROTOTYPE v0.1</div>
+        <div class="version">PLAYABLE BUILD v0.2</div>
       </div>
     </section>
 
     <section id="creatorScreen" class="screen">
       <header class="topBar">
         <button id="creatorBack" class="iconBtn">←</button>
-        <div>
-          <div class="eyebrow">FIGHTER LAB</div>
-          <strong>Build your Nethen fighter</strong>
-        </div>
+        <div><div class="eyebrow">FIGHTER LAB</div><strong>Build your Nethen fighter</strong></div>
         <button id="randomizeBtn" class="chipBtn">RANDOM</button>
       </header>
 
@@ -44,24 +41,23 @@
 
         <main class="creatorMain">
           <div class="previewCard">
-            <div class="fighterPreview" id="fighterPreview">
+            <div class="fighterPreview">
               <div class="previewGlow"></div>
               <div class="avatar" id="avatar">
                 <div class="avatarHair" id="avatarHair"></div>
-                <div class="avatarHead" id="avatarHead"></div>
+                <div class="avatarHead" id="avatarHead"><div class="faceEyes"></div></div>
                 <div class="avatarBody" id="avatarBody"></div>
+                <div class="avatarShoulder left" id="shoulderLeft"></div><div class="avatarShoulder right" id="shoulderRight"></div>
                 <div class="avatarLeg left"></div><div class="avatarLeg right"></div>
                 <div class="avatarShoe left" id="shoeLeft"></div><div class="avatarShoe right" id="shoeRight"></div>
-                <div class="avatarWeapon" id="avatarWeapon">⚔</div>
+                <div class="avatarWeapon" id="avatarWeapon"></div>
               </div>
               <div class="fighterName" id="fighterName">EMBER</div>
             </div>
           </div>
 
           <div class="pickerPanel">
-            <div class="searchRow">
-              <input id="optionSearch" placeholder="Search gear e.g. fire sword" autocomplete="off" />
-            </div>
+            <div class="searchRow"><input id="optionSearch" placeholder="Search gear e.g. hammer" autocomplete="off" /></div>
             <div id="optionTitle" class="optionTitle">HEAD OPTIONS</div>
             <div id="optionGrid" class="optionGrid"></div>
           </div>
@@ -83,8 +79,10 @@
       </div>
 
       <div id="enemyHud" class="enemyHud hidden"><small>LAVA MONSTER</small><div class="enemyBar"><i id="enemyBar"></i></div></div>
-      <div id="message" class="message">Find the lava monster.</div>
+      <div id="message" class="message">Follow the burning path.</div>
+      <div id="attackWarning" class="attackWarning hidden">⚠ INCOMING!</div>
       <div class="crosshair">+</div>
+      <div id="heldWeapon" class="heldWeapon sword"><span class="weaponBlade"></span><span class="weaponGrip"></span></div>
 
       <div class="movePad" id="movePad">
         <button data-move="forward">▲</button>
@@ -104,11 +102,20 @@
         <button id="eatMeatBtn" class="eatBtn">EAT MEAT</button>
       </div>
 
-      <div id="victoryPanel" class="victoryPanel hidden">
-        <div class="eyebrow">MONSTER DOWN</div>
-        <h2>MEAT DROP!</h2>
-        <p>You defeated the Lava Monster and collected Ember Meat.</p>
-        <button id="playAgainBtn" class="megaBtn">FIGHT AGAIN</button>
+      <div id="victoryPanel" class="overlayPanel hidden">
+        <div class="eyebrow">AREA CLEARED</div><h2>LAVA MONSTER DOWN!</h2>
+        <p>Collect the Ember Meat before moving on.</p>
+        <button id="fightAgainBtn" class="megaBtn">FIGHT AGAIN</button>
+        <button id="victoryCreatorBtn" class="secondaryBtn">CHANGE FIGHTER</button>
+        <button id="victoryMenuBtn" class="secondaryBtn">MAIN MENU</button>
+      </div>
+
+      <div id="deathPanel" class="overlayPanel deathPanel hidden">
+        <div class="eyebrow">NETHEN CLAIMED YOU</div><h2>YOU DIED</h2>
+        <p>Your fighter is saved. Jump straight back in or change your gear.</p>
+        <button id="retryBtn" class="megaBtn">RETRY FIGHT</button>
+        <button id="deathCreatorBtn" class="secondaryBtn">BACK TO CHARACTER CREATOR</button>
+        <button id="deathMenuBtn" class="secondaryBtn">MAIN MENU</button>
       </div>
     </section>
   </div>
