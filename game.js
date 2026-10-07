@@ -331,6 +331,7 @@ let aim={x:0,y:0,px:innerWidth/2,py:innerHeight/2};
 let aimPointerId=null;
 let toyBag={football:0,juggle:0,duck:0,rocket:0};
 let looseFootball=null;
+let avatar3d=null, activeToyFx=[];
 let currentLevel=1, transitioning=false;
 let goldenEmber=null, emberTouches=0, emberCore=false, emberTarget=null, emberRetarget=0;
 let combo=0,lastAttackAt=0,blockStartedAt=0;
@@ -464,13 +465,113 @@ function monsterSprite(){
   return group;
 }
 
+
+function hexColor(v,fallback=0xffffff){
+  if(typeof v==='number') return v;
+  if(typeof v==='string' && v[0]==='#') return parseInt(v.slice(1),16);
+  return fallback;
+}
+function makePart(geo,color){
+  const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:hexColor(color),roughness:.78,metalness:.05}));
+  m.castShadow=true; m.receiveShadow=true; return m;
+}
+function createPlayerAvatar(){
+  const g=new THREE.Group();
+  const skin=itemVal(data.skin[sel.skin]);
+  const armor=itemColor(data.armor[sel.armor]);
+  const hair=itemColor(data.hair[sel.hair]);
+  const boots=itemColor(data.boots[sel.boots]);
+  const torso=makePart(new THREE.BoxGeometry(1.15,1.55,.62),armor); torso.position.y=1.9;
+  const hips=makePart(new THREE.BoxGeometry(.92,.42,.55),0x242838); hips.position.y=1.04;
+  const head=makePart(new THREE.SphereGeometry(.48,18,14),skin); head.position.y=3.1; head.scale.set(.92,1.08,.9);
+  const hairCap=makePart(new THREE.SphereGeometry(.5,16,10,0,Math.PI*2,0,Math.PI*.56),hair); hairCap.position.set(0,3.32,0); hairCap.scale.set(.98,.7,.96);
+  const eyeMat=new THREE.MeshBasicMaterial({color:hexColor(itemColor(data.eyes[sel.eyes]),0x3ca6ff)});
+  const eyeL=new THREE.Mesh(new THREE.SphereGeometry(.055,8,6),eyeMat); eyeL.position.set(-.16,3.16,-.43);
+  const eyeR=eyeL.clone(); eyeR.position.x=.16;
+  const armL=makePart(new THREE.CylinderGeometry(.14,.14,1.2,10),skin); armL.position.set(-.75,1.9,0); armL.rotation.z=.08;
+  const armR=makePart(new THREE.CylinderGeometry(.14,.14,1.2,10),skin); armR.position.set(.75,1.9,0); armR.rotation.z=-.08;
+  const legL=makePart(new THREE.CylinderGeometry(.17,.17,1.25,10),0x242838); legL.position.set(-.28,.5,0);
+  const legR=makePart(new THREE.CylinderGeometry(.17,.17,1.25,10),0x242838); legR.position.set(.28,.5,0);
+  const bootL=makePart(new THREE.BoxGeometry(.38,.28,.72),boots); bootL.position.set(-.28,-.14,-.12);
+  const bootR=bootL.clone(); bootR.position.x=.28;
+  const weaponType=itemVal(data.weapon[sel.weapon]);
+  let weapon;
+  if(weaponType==='hammer') weapon=makePart(new THREE.BoxGeometry(.34,1.45,.24),0x8c929a);
+  else if(weaponType==='blaster') weapon=makePart(new THREE.BoxGeometry(.25,.75,.5),0x43e4ff);
+  else weapon=makePart(new THREE.BoxGeometry(.12,1.5,.13),0xdfe5ee);
+  weapon.position.set(.95,1.45,-.2); weapon.rotation.z=-.25;
+  g.add(torso,hips,head,hairCap,eyeL,eyeR,armL,armR,legL,legR,bootL,bootR,weapon);
+  g.userData={torso,head,hairCap,armL,armR,legL,legR,weapon,walk:0};
+  player.add(g); avatar3d=g; return g;
+}
+function updatePlayerAvatar(dt){
+  if(!avatar3d) return;
+  const u=avatar3d.userData;
+  const moving=Math.hypot(joy.x,joy.y)>.08;
+  if(moving) u.walk+=dt*10;
+  const s=moving?Math.sin(u.walk)*.72:0;
+  u.legL.rotation.x=s; u.legR.rotation.x=-s;
+  u.armL.rotation.x=-s*.65; u.armR.rotation.x=s*.65;
+  avatar3d.position.y=moving?Math.abs(Math.sin(u.walk*2))*.035:0;
+}
+function updateThirdPersonCamera(dt){
+  if(!camera||!player) return;
+  const back=7.4, shoulder=1.15, height=4.4;
+  const sy=Math.sin(yaw), cy=Math.cos(yaw);
+  const desired=new THREE.Vector3(
+    player.position.x + shoulder*cy + back*sy,
+    player.position.y + height,
+    player.position.z + shoulder*(-sy) + back*cy
+  );
+  const smooth=1-Math.pow(.001,dt);
+  camera.position.lerp(desired,smooth);
+  const target=new THREE.Vector3(player.position.x,player.position.y+1.65+pitch*2.2,player.position.z);
+  target.x += -Math.sin(yaw)*2.5;
+  target.z += -Math.cos(yaw)*2.5;
+  camera.lookAt(target);
+}
+function addToyFx(obj,kind,duration=6){
+  activeToyFx.push({obj,kind,t:0,duration,start:obj.position.clone()});
+}
+function updateToyFx(dt){
+  for(let i=activeToyFx.length-1;i>=0;i--){
+    const fx=activeToyFx[i]; if(!fx.obj||!fx.obj.parent){activeToyFx.splice(i,1);continue;}
+    fx.t+=dt;
+    if(fx.kind==='juggle'){
+      fx.obj.position.copy(player.position); fx.obj.position.y+=2.4;
+      fx.obj.children.forEach((b,j)=>{
+        if(b.type==='Sprite') return;
+        const phase=fx.t*4.6+j*2.1;
+        b.position.x=Math.sin(phase)*.75;
+        b.position.y=.55+Math.abs(Math.sin(phase))*1.35;
+        b.position.z=Math.cos(phase)*.24;
+      });
+    }else if(fx.kind==='duck'){
+      const a=fx.t*1.8;
+      fx.obj.position.x=fx.start.x+Math.cos(a)*1.7;
+      fx.obj.position.z=fx.start.z+Math.sin(a)*1.7;
+      fx.obj.position.y=.55+Math.abs(Math.sin(fx.t*7))*.08;
+      fx.obj.rotation.y=-a;
+    }else if(fx.kind==='rocket'){
+      fx.obj.position.y=fx.start.y+fx.t*5.5;
+      fx.obj.rotation.z+=dt*4;
+      fx.obj.rotation.y+=dt*5;
+      if(fx.obj.userData.rocketLight) fx.obj.userData.rocketLight.intensity=4+Math.sin(fx.t*18)*1.5;
+    }
+    if(fx.t>fx.duration){
+      if(fx.kind==='juggle'||fx.kind==='rocket') scene.remove(fx.obj);
+      activeToyFx.splice(i,1);
+    }
+  }
+}
+
 function startRun(){
   currentLevel=1; health=100; special=0; meat=0; transitioning=false; emberCore=false; emberTouches=0; combo=0; toyBag={football:0,juggle:0,duck:0,rocket:0}; looseFootball=null; startLevel();
 }
 function startLevel(){
   cancelAnimationFrame(anim);
   $('#gameCanvas').innerHTML='';
-  dead=false; won=false; blocking=false; enemyMode='hunt'; enemyTimer=.8; attackCd=0; dodgeCd=0; joy={x:0,y:0}; yaw=0; pitch=0; drops=[]; grabRoots=[]; currentGrabTarget=null; looseFootball=null; transitioning=false; aim={x:0,y:0,px:innerWidth/2,py:innerHeight/2}; positionCrosshair(innerWidth/2,innerHeight/2);
+  dead=false; won=false; blocking=false; enemyMode='hunt'; enemyTimer=.8; attackCd=0; dodgeCd=0; joy={x:0,y:0}; yaw=0; pitch=0; drops=[]; grabRoots=[]; currentGrabTarget=null; looseFootball=null; activeToyFx=[]; transitioning=false; aim={x:0,y:0,px:innerWidth/2,py:innerHeight/2}; positionCrosshair(innerWidth/2,innerHeight/2);
   $('#death').classList.add('hidden'); $('#levelClear').classList.add('hidden'); $('#runComplete').classList.add('hidden'); $('#scienceGate').classList.add('hidden'); $('#huntHud').classList.add('hidden'); $('#comboHud').classList.add('hidden');
   const cfg=LEVELS[currentLevel];
   $('#levelText').textContent=cfg.name; $('#objectiveText').textContent=cfg.objective; $('#enemyName').textContent=cfg.enemy;
@@ -480,14 +581,15 @@ function startLevel(){
   $('#enemyHud').classList.toggle('hidden',cfg.kind==='hunt');
   enemyHealth=cfg.hp;
   scene=new THREE.Scene();
-  camera=new THREE.PerspectiveCamera(72, innerWidth/innerHeight, .1, 120);
-  player=new THREE.Object3D(); player.position.set(0,1.7,20); player.add(camera); scene.add(player);
+  camera=new THREE.PerspectiveCamera(68, innerWidth/innerHeight, .1, 120);
+  player=new THREE.Object3D(); player.position.set(0,0,20); scene.add(player); scene.add(camera); createPlayerAvatar();
+  camera.position.set(1.2,4.4,27.4);
   renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); renderer.setSize(innerWidth,innerHeight); $('#gameCanvas').appendChild(renderer.domElement);
   world(); spawnWorldToys(); clock=new THREE.Clock();
   if(cfg.kind==='hunt'){ monster=null; setupGoldenEmber(); $('#huntHud').classList.remove('hidden'); $('#message').textContent='ROAM THE NETHEN — THE GOLDEN EMBER WILL FLEE FROM YOU!'; }
   else { monster=monsterSprite(); $('#message').textContent=currentLevel===6?'FINAL BOSS — YOUR MONSTER CAME BACK MEGA!':'The next enemy is coming for you.'; }
-  setupLook(); update(); loop();
+  $('#heldWeapon').style.display='none'; setupLook(); updateThirdPersonCamera(.016); update(); loop();
 }
 
 function showScienceGate(){
@@ -720,21 +822,22 @@ function loop(){
   let dt=Math.min(clock.getDelta(), .05);
   attackCd=Math.max(0,attackCd-dt); dodgeCd=Math.max(0,dodgeCd-dt);
   if(!dead){
-    let f=new THREE.Vector3(0,0,-1).applyQuaternion(player.quaternion); f.y=0; f.normalize();
-    let r=new THREE.Vector3(1,0,0).applyQuaternion(player.quaternion); r.y=0; r.normalize();
-    const moveSpeed=8.0;
+    const edgeX=Math.abs(aim.x)>.62 ? (Math.abs(aim.x)-.62)/.38*Math.sign(aim.x) : 0;
+    const edgeY=Math.abs(aim.y)>.68 ? (Math.abs(aim.y)-.68)/.32*Math.sign(aim.y) : 0;
+    yaw -= edgeX*1.35*dt;
+    pitch=Math.max(-.42,Math.min(.42,pitch+edgeY*.62*dt));
+    player.rotation.y=yaw;
+    const f=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+    const r=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+    const moveSpeed=7.2;
     player.position.addScaledVector(r, joy.x*moveSpeed*dt);
     player.position.addScaledVector(f, -joy.y*moveSpeed*dt);
     player.position.x=Math.max(-18,Math.min(18,player.position.x));
     player.position.z=Math.max(-38,Math.min(30,player.position.z));
-    // Edge-aim gently turns the view while the crosshair remains under your finger.
-    const edgeX=Math.abs(aim.x)>.62 ? (Math.abs(aim.x)-.62)/.38*Math.sign(aim.x) : 0;
-    const edgeY=Math.abs(aim.y)>.68 ? (Math.abs(aim.y)-.68)/.32*Math.sign(aim.y) : 0;
-    yaw -= edgeX*1.25*dt;
-    pitch=Math.max(-.55,Math.min(.55,pitch+edgeY*.75*dt));
-    player.rotation.y=yaw; camera.rotation.x=pitch;
+    updatePlayerAvatar(dt);
+    updateThirdPersonCamera(dt);
     if(LEVELS[currentLevel].kind==='hunt') updateGoldenEmber(dt); else { enemy(dt); collect(); }
-    updateGrabTarget(); updateLooseFootball(dt);
+    updateGrabTarget(); updateLooseFootball(dt); updateToyFx(dt);
   }
   renderer.render(scene,camera);
 }
@@ -820,18 +923,27 @@ function renderToyInventory(){
   if(!wrap.children.length) wrap.innerHTML='<small>No toys yet. Explore the Nethen and GRAB stuff.</small>';
 }
 function playToy(type){
-  if(!(toyBag[type]>0)) return;
+  if(!(toyBag[type]>0) || !scene || !player) return;
   $('#inventory').classList.add('hidden');
+  const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+  const spawn=player.position.clone().addScaledVector(forward,2.8); spawn.y=.55;
   if(type==='juggle'){
-    const fx=$('#juggleFx'); fx.classList.remove('hidden','playing'); void fx.offsetWidth; fx.classList.add('playing'); setTimeout(()=>fx.classList.add('hidden'),4300); $('#message').textContent='JUGGLING!';
+    const g=toyObject('juggle',player.position.clone());
+    grabRoots=grabRoots.filter(x=>x!==g); // animation only, not a pickup
+    g.children.forEach(ch=>{ if(ch.type==='Sprite') ch.visible=false; });
+    addToyFx(g,'juggle',5.5);
+    $('#message').textContent='🤹 JUGGLING — LOOK AT YOUR CHARACTER!';
   }else if(type==='football'){
     if(looseFootball&&looseFootball.parent){ $('#message').textContent='YOUR FOOTBALL IS ALREADY OUT THERE'; return; }
-    const f=new THREE.Vector3(0,0,-3.5).applyQuaternion(player.quaternion).add(player.position); f.y=.52;
-    looseFootball=toyObject('football',f); looseFootball.userData.grabType='football'; looseFootball.userData.grabLabel='FOOTBALL'; looseFootball.userData.velocity=new THREE.Vector3(); toyBag.football--; update(); $('#message').textContent='FOOTBALL DROPPED — AIM AND HIT IT TO KICK';
+    looseFootball=toyObject('football',spawn); looseFootball.userData.grabType='football'; looseFootball.userData.grabLabel='FOOTBALL'; looseFootball.userData.velocity=new THREE.Vector3();
+    toyBag.football--; update(); $('#message').textContent='⚽ FOOTBALL OUT — AIM AT IT AND HIT TO KICK';
   }else if(type==='duck'){
-    $('#message').textContent='QUACK! THE DUCK IS DELIGHTED.'; combatFx(.7,1);
+    const d=toyObject('duck',spawn); d.userData.grabType='toy'; d.userData.toyType='duck'; d.userData.grabLabel='RUBBER DUCK'; addToyFx(d,'duck',12);
+    $('#message').textContent='🦆 QUACK! THE DUCK IS WADDLING AROUND.';
   }else if(type==='rocket'){
-    $('#message').textContent='WHOOSH! TOY ROCKET LAUNCHED.'; combatFx(1,2);
+    const r=toyObject('rocket',spawn); grabRoots=grabRoots.filter(x=>x!==r); r.children.forEach(ch=>{ if(ch.type==='Sprite') ch.visible=false; });
+    const light=new THREE.PointLight(0xff8a18,5,10); light.position.set(-.5,0,0); r.add(light); r.userData.rocketLight=light; addToyFx(r,'rocket',3.6);
+    $('#message').textContent='🚀 ROCKET LAUNCHED — WATCH IT GO!';
   }
 }
 function kickFootball(ball){

@@ -1,11 +1,13 @@
-# NETHEN v0.9
+# NETHEN v0.10
 
-Aubrey's iPad-control update.
+Third-person / toybox build.
 
-## New in v0.9
-- Drag your finger around the right side of the game to move the crosshair itself.
-- HIT and GRAB now use the crosshair position, not just the centre of the screen.
-- Moving the crosshair near the edge gently turns the camera.
-- Larger, smoother movement joystick with a dead zone and faster walking.
-- Golden Ember, meat, toys and football can all be aimed at with the movable crosshair.
-- Toybox/inventory remains available from the backpack button.
+## New
+- GTA-style over-the-shoulder third-person camera
+- your customised fighter is visible in the Nethen
+- character runs and turns with movement
+- football play happens in-world
+- juggling balls animate around your character
+- rubber duck is placed in-world and waddles
+- toy rocket launches visibly
+- HIT and GRAB retained
