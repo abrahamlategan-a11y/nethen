@@ -1,13 +1,9 @@
-# NETHEN v0.10
+# NETHEN v0.11
 
-Third-person / toybox build.
+Third-person combat animation patch.
 
-## New
-- GTA-style over-the-shoulder third-person camera
-- your customised fighter is visible in the Nethen
-- character runs and turns with movement
-- football play happens in-world
-- juggling balls animate around your character
-- rubber duck is placed in-world and waddles
-- toy rocket launches visibly
-- HIT and GRAB retained
+- visible full-body attack animations
+- weapon arc and arm swing
+- body lunge and recoil
+- bigger third-hit finisher
+- stronger enemy hit reaction

@@ -325,6 +325,7 @@ async function ensureThree(){
 }
 
 let scene,camera,renderer,player,monster,clock,anim;
+let attackAnim={active:false,t:0,duration:.34,power:1,combo:1};
 let health=100,special=0,enemyHealth=100,meat=0,dead=false,won=false,blocking=false,enemyMode='hunt',enemyTimer=0,attackCd=0,dodgeCd=0,joy={x:0,y:0},yaw=0,pitch=0,drops=[];
 let grabRoots=[],currentGrabTarget=null;
 let aim={x:0,y:0,px:innerWidth/2,py:innerHeight/2};
@@ -501,7 +502,7 @@ function createPlayerAvatar(){
   else weapon=makePart(new THREE.BoxGeometry(.12,1.5,.13),0xdfe5ee);
   weapon.position.set(.95,1.45,-.2); weapon.rotation.z=-.25;
   g.add(torso,hips,head,hairCap,eyeL,eyeR,armL,armR,legL,legR,bootL,bootR,weapon);
-  g.userData={torso,head,hairCap,armL,armR,legL,legR,weapon,walk:0};
+  g.userData={torso,head,hairCap,armL,armR,legL,legR,weapon,walk:0,baseWeaponRot:weapon.rotation.clone(),baseWeaponPos:weapon.position.clone()};
   player.add(g); avatar3d=g; return g;
 }
 function updatePlayerAvatar(dt){
@@ -510,9 +511,60 @@ function updatePlayerAvatar(dt){
   const moving=Math.hypot(joy.x,joy.y)>.08;
   if(moving) u.walk+=dt*10;
   const s=moving?Math.sin(u.walk)*.72:0;
+
+  // normal run cycle
   u.legL.rotation.x=s; u.legR.rotation.x=-s;
   u.armL.rotation.x=-s*.65; u.armR.rotation.x=s*.65;
+  u.armL.rotation.z=.08; u.armR.rotation.z=-.08;
   avatar3d.position.y=moving?Math.abs(Math.sin(u.walk*2))*.035:0;
+  avatar3d.position.z=0;
+  avatar3d.rotation.z=0;
+  avatar3d.rotation.x=0;
+  u.weapon.position.copy(u.baseWeaponPos);
+  u.weapon.rotation.copy(u.baseWeaponRot);
+
+  // third-person attack animation: wind-up -> slash -> recover
+  if(attackAnim.active){
+    attackAnim.t += dt;
+    const q=Math.min(1,attackAnim.t/attackAnim.duration);
+    const power=attackAnim.power;
+    let swing;
+    if(q<.28){
+      const a=q/.28;
+      swing=-1.05*a;
+      avatar3d.rotation.z=-.08*a;
+      avatar3d.position.z=.12*a;
+    }else if(q<.62){
+      const a=(q-.28)/.34;
+      swing=-1.05 + 2.55*a;
+      avatar3d.rotation.z=-.08 + .25*a*power;
+      avatar3d.position.z=.12 - .55*Math.sin(a*Math.PI)*power;
+    }else{
+      const a=(q-.62)/.38;
+      swing=1.5*(1-a);
+      avatar3d.rotation.z=.17*(1-a)*power;
+      avatar3d.position.z=-.18*(1-a)*power;
+    }
+    u.armR.rotation.x=swing;
+    u.armR.rotation.z=-.35 - .55*Math.sin(q*Math.PI);
+    u.armL.rotation.x=.35*Math.sin(q*Math.PI);
+    u.torso.rotation.y=-.18*Math.sin(q*Math.PI)*power;
+    u.head.rotation.y=.08*Math.sin(q*Math.PI);
+    u.weapon.rotation.x=-.25 + swing*.85;
+    u.weapon.rotation.z=-.25 - .55*Math.sin(q*Math.PI);
+    u.weapon.position.x=.95 + .18*Math.sin(q*Math.PI);
+    u.weapon.position.z=-.2 - .55*Math.sin(q*Math.PI)*power;
+    if(q>=1){
+      attackAnim.active=false;
+      u.torso.rotation.set(0,0,0); u.head.rotation.set(0,0,0);
+      u.armR.rotation.x=0; u.armR.rotation.z=-.08;
+      u.armL.rotation.x=0; u.armL.rotation.z=.08;
+      u.weapon.position.copy(u.baseWeaponPos); u.weapon.rotation.copy(u.baseWeaponRot);
+      avatar3d.position.z=0; avatar3d.rotation.z=0;
+    }
+  }else{
+    u.torso.rotation.y*=.75; u.head.rotation.y*=.75;
+  }
 }
 function updateThirdPersonCamera(dt){
   if(!camera||!player) return;
@@ -712,6 +764,7 @@ function attack(isSpecial=false){
   lastAttackAt=now;
   if(isSpecial) combo=3;
   attackCd=isSpecial?.78:(combo===3?.48:.3);
+  attackAnim={active:true,t:0,duration:isSpecial?.55:(combo===3?.46:.34),power:isSpecial?1.8:(combo===3?1.45:1),combo};
   $('#heldWeapon').classList.remove('swing'); void $('#heldWeapon').offsetWidth; $('#heldWeapon').classList.add('swing');
   setTimeout(()=>$('#heldWeapon').classList.remove('swing'),320);
   $('#comboText').textContent=isSpecial?'EMBER BLAST!':`COMBO x${combo}`;
@@ -725,6 +778,9 @@ function attack(isSpecial=false){
     if(!isSpecial) special=Math.min(100,special+(combo===3?18:10));
     const away=monster.position.clone().sub(player.position).setY(0).normalize();
     monster.position.addScaledVector(away,isSpecial?3.8:combo===3?2.0:.75);
+    monster.rotation.z=(Math.random()>.5?1:-1)*(isSpecial?.28:combo===3?.18:.09);
+    monster.rotation.x=isSpecial?.16:combo===3?.1:.04;
+    setTimeout(()=>{ if(monster){ monster.rotation.z=0; monster.rotation.x=0; } },isSpecial?360:220);
     hitSparks(monster.position,isSpecial||combo===3);
     if(monster.userData?.sprite){ monster.userData.sprite.material.color.setHex(0xff9a82); setTimeout(()=>monster?.userData?.sprite?.material?.color.setHex(0xffffff),110); }
     enemyMode='stagger'; enemyTimer=isSpecial?.7:combo===3?.48:.16;
