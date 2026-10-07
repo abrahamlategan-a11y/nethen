@@ -1,14 +1,11 @@
-# NETHEN v0.8
+# NETHEN v0.9
 
-Aubrey's grab-and-play build.
+Aubrey's iPad-control update.
 
-## New
-- Only two main action buttons: HIT and GRAB.
-- Crosshair highlights things that can be grabbed.
-- A first-person hand reaches out when GRAB is pressed.
-- Golden Ember must be aimed at and grabbed three times.
-- Meat must be grabbed into inventory.
-- Random toys now appear in the Nethen: football, juggling balls, rubber duck and toy rocket.
-- Football can be dropped from the toybox, kicked with HIT, then grabbed again.
-- Juggling balls can be played with from the toybox.
-- A full special bar automatically turns HIT into SUPER HIT.
+## New in v0.9
+- Drag your finger around the right side of the game to move the crosshair itself.
+- HIT and GRAB now use the crosshair position, not just the centre of the screen.
+- Moving the crosshair near the edge gently turns the camera.
+- Larger, smoother movement joystick with a dead zone and faster walking.
+- Golden Ember, meat, toys and football can all be aimed at with the movable crosshair.
+- Toybox/inventory remains available from the backpack button.

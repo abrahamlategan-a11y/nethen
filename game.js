@@ -327,6 +327,8 @@ async function ensureThree(){
 let scene,camera,renderer,player,monster,clock,anim;
 let health=100,special=0,enemyHealth=100,meat=0,dead=false,won=false,blocking=false,enemyMode='hunt',enemyTimer=0,attackCd=0,dodgeCd=0,joy={x:0,y:0},yaw=0,pitch=0,drops=[];
 let grabRoots=[],currentGrabTarget=null;
+let aim={x:0,y:0,px:innerWidth/2,py:innerHeight/2};
+let aimPointerId=null;
 let toyBag={football:0,juggle:0,duck:0,rocket:0};
 let looseFootball=null;
 let currentLevel=1, transitioning=false;
@@ -468,7 +470,7 @@ function startRun(){
 function startLevel(){
   cancelAnimationFrame(anim);
   $('#gameCanvas').innerHTML='';
-  dead=false; won=false; blocking=false; enemyMode='hunt'; enemyTimer=.8; attackCd=0; dodgeCd=0; joy={x:0,y:0}; yaw=0; pitch=0; drops=[]; grabRoots=[]; currentGrabTarget=null; looseFootball=null; transitioning=false;
+  dead=false; won=false; blocking=false; enemyMode='hunt'; enemyTimer=.8; attackCd=0; dodgeCd=0; joy={x:0,y:0}; yaw=0; pitch=0; drops=[]; grabRoots=[]; currentGrabTarget=null; looseFootball=null; transitioning=false; aim={x:0,y:0,px:innerWidth/2,py:innerHeight/2}; positionCrosshair(innerWidth/2,innerHeight/2);
   $('#death').classList.add('hidden'); $('#levelClear').classList.add('hidden'); $('#runComplete').classList.add('hidden'); $('#scienceGate').classList.add('hidden'); $('#huntHud').classList.add('hidden'); $('#comboHud').classList.add('hidden');
   const cfg=LEVELS[currentLevel];
   $('#levelText').textContent=cfg.name; $('#objectiveText').textContent=cfg.objective; $('#enemyName').textContent=cfg.enemy;
@@ -534,15 +536,37 @@ function updateGoldenEmber(dt){
   goldenEmber.position.x=Math.max(-16,Math.min(16,goldenEmber.position.x)); goldenEmber.position.z=Math.max(-34,Math.min(27,goldenEmber.position.z));
 }
 
+function positionCrosshair(x,y){
+  const margin=34;
+  x=Math.max(margin,Math.min(innerWidth-margin,x));
+  y=Math.max(82,Math.min(innerHeight-margin,y));
+  aim.px=x; aim.py=y;
+  aim.x=(x/innerWidth)*2-1;
+  aim.y=-(y/innerHeight)*2+1;
+  const c=$('#crosshair');
+  if(c){ c.style.left=x+'px'; c.style.top=y+'px'; }
+  const hint=$('#grabHint');
+  if(hint){ hint.style.left=x+'px'; hint.style.top=(y+34)+'px'; }
+}
 function setupLook(){
-  let c=renderer.domElement, drag=false, lx=0, ly=0;
-  c.onpointerdown=e=>{ if(e.clientX < innerWidth*.38) return; drag=true; lx=e.clientX; ly=e.clientY; };
-  c.onpointermove=e=>{ if(!drag) return; let dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY; yaw-=dx*.005; pitch=Math.max(-.5,Math.min(.5,pitch-dy*.004)); player.rotation.y=yaw; camera.rotation.x=pitch; };
-  c.onpointerup=c.onpointercancel=()=> drag=false;
+  const c=renderer.domElement;
+  c.onpointerdown=e=>{
+    if(e.clientX < innerWidth*.38 || e.target.closest?.('button,.joystick,.panel,.modal')) return;
+    aimPointerId=e.pointerId;
+    c.setPointerCapture?.(e.pointerId);
+    positionCrosshair(e.clientX,e.clientY);
+  };
+  c.onpointermove=e=>{ if(e.pointerId===aimPointerId) positionCrosshair(e.clientX,e.clientY); };
+  c.onpointerup=c.onpointercancel=e=>{ if(e.pointerId===aimPointerId) aimPointerId=null; };
 }
 
-function dist(){ return player.position.distanceTo(monster.position); }
-function facing(){ let f=new THREE.Vector3(0,0,-1).applyQuaternion(player.quaternion).normalize(); let d=monster.position.clone().sub(player.position).setY(0).normalize(); return f.dot(d)>.35; }
+function dist(){ return monster ? player.position.distanceTo(monster.position) : 999; }
+function aimingAtMonster(max=5.4){
+  if(!monster||!camera) return false;
+  const ray=new THREE.Raycaster();
+  ray.setFromCamera(new THREE.Vector2(aim.x,aim.y),camera); ray.far=max;
+  return ray.intersectObjects(monster.children||[],true).length>0;
+}
 function update(){
   $('#healthText').textContent=Math.round(health); $('#healthBar').style.width=health+'%';
   $('#specialText').textContent=Math.round(special)+'%'; $('#specialBar').style.width=special+'%';
@@ -592,7 +616,7 @@ function attack(isSpecial=false){
   $('#comboHud').classList.remove('hidden'); setTimeout(()=>$('#comboHud').classList.add('hidden'),650);
   combatFx(isSpecial?2:combo===3?1.5:1,combo);
   if(isSpecial) special=0;
-  if(dist()<5.0 && facing()){
+  if(dist()<5.4 && aimingAtMonster(5.6)){
     const base=[0,14,18,29][combo];
     let dmg=isSpecial?(emberCore?82:64):base;
     enemyHealth-=dmg;
@@ -698,10 +722,17 @@ function loop(){
   if(!dead){
     let f=new THREE.Vector3(0,0,-1).applyQuaternion(player.quaternion); f.y=0; f.normalize();
     let r=new THREE.Vector3(1,0,0).applyQuaternion(player.quaternion); r.y=0; r.normalize();
-    player.position.addScaledVector(r, joy.x*6.6*dt);
-    player.position.addScaledVector(f, -joy.y*6.6*dt);
+    const moveSpeed=8.0;
+    player.position.addScaledVector(r, joy.x*moveSpeed*dt);
+    player.position.addScaledVector(f, -joy.y*moveSpeed*dt);
     player.position.x=Math.max(-18,Math.min(18,player.position.x));
     player.position.z=Math.max(-38,Math.min(30,player.position.z));
+    // Edge-aim gently turns the view while the crosshair remains under your finger.
+    const edgeX=Math.abs(aim.x)>.62 ? (Math.abs(aim.x)-.62)/.38*Math.sign(aim.x) : 0;
+    const edgeY=Math.abs(aim.y)>.68 ? (Math.abs(aim.y)-.68)/.32*Math.sign(aim.y) : 0;
+    yaw -= edgeX*1.25*dt;
+    pitch=Math.max(-.55,Math.min(.55,pitch+edgeY*.75*dt));
+    player.rotation.y=yaw; camera.rotation.x=pitch;
     if(LEVELS[currentLevel].kind==='hunt') updateGoldenEmber(dt); else { enemy(dt); collect(); }
     updateGrabTarget(); updateLooseFootball(dt);
   }
@@ -740,7 +771,7 @@ function rootGrabObject(obj){
 }
 function getGrabTarget(max=6.5,onlyType=null){
   if(!camera||!scene) return null;
-  const ray=new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2(0,0),camera); ray.far=max;
+  const ray=new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2(aim.x,aim.y),camera); ray.far=max;
   const hits=ray.intersectObjects(grabRoots.filter(o=>o&&o.parent),true);
   for(const h of hits){ const root=rootGrabObject(h.object); if(root && (!onlyType || root.userData.grabType===onlyType || root.userData.toyType===onlyType)) return root; }
   return null;
@@ -818,9 +849,14 @@ function updateLooseFootball(dt){
 const joyEl=$('#joy'), knob=$('#joyKnob');
 let joyId=null;
 function joyMove(e){
-  let r=joyEl.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, dx=e.clientX-cx, dy=e.clientY-cy, max=r.width*.32, len=Math.hypot(dx,dy)||1;
+  let r=joyEl.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, dx=e.clientX-cx, dy=e.clientY-cy, max=r.width*.36, len=Math.hypot(dx,dy)||1;
   if(len>max){ dx=dx/len*max; dy=dy/len*max; }
-  joy.x=dx/max; joy.y=dy/max; knob.style.transform=`translate(${dx}px,${dy}px)`;
+  let nx=dx/max, ny=dy/max;
+  const dead=.12;
+  const mag=Math.hypot(nx,ny);
+  if(mag<dead){ nx=0; ny=0; }
+  else { const scaled=(mag-dead)/(1-dead); nx=nx/mag*scaled; ny=ny/mag*scaled; }
+  joy.x=nx; joy.y=ny; knob.style.transform=`translate(${dx}px,${dy}px)`;
 }
 joyEl.onpointerdown=e=>{ joyId=e.pointerId; joyEl.setPointerCapture(e.pointerId); joyMove(e); };
 joyEl.onpointermove=e=>{ if(e.pointerId===joyId) joyMove(e); };
@@ -846,4 +882,4 @@ $('#enterBtn').onclick=async()=>{
   finally{ b.disabled=false; b.textContent='ENTER THE NETHEN →'; }
 };
 
-addEventListener('resize',()=>{ if(!renderer) return; camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+addEventListener('resize',()=>{ positionCrosshair(Math.min(aim.px,innerWidth-34),Math.min(aim.py,innerHeight-34)); if(!renderer) return; camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
