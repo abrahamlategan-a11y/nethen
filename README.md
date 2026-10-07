@@ -1,9 +1,10 @@
-# NETHEN v0.11
+# NETHEN v0.12
 
-Third-person combat animation patch.
+Aubrey's latest playable build.
 
-- visible full-body attack animations
-- weapon arc and arm swing
-- body lunge and recoil
-- bigger third-hit finisher
-- stronger enemy hit reaction
+## Fixes in v0.12
+- much bigger third-person weapon swipe and body lunge
+- larger slash arc and stronger hit feedback
+- fixed third-person hit detection so close enemies actually take damage
+- enemy HP now clamps correctly and death triggers reliably
+- slightly stronger combo damage so fights remain challenging without becoming endless

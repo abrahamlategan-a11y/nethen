@@ -523,44 +523,61 @@ function updatePlayerAvatar(dt){
   u.weapon.position.copy(u.baseWeaponPos);
   u.weapon.rotation.copy(u.baseWeaponRot);
 
-  // third-person attack animation: wind-up -> slash -> recover
+  // third-person attack animation: exaggerated wind-up -> huge cross-body swipe -> recover
   if(attackAnim.active){
     attackAnim.t += dt;
     const q=Math.min(1,attackAnim.t/attackAnim.duration);
     const power=attackAnim.power;
-    let swing;
-    if(q<.28){
-      const a=q/.28;
-      swing=-1.05*a;
-      avatar3d.rotation.z=-.08*a;
-      avatar3d.position.z=.12*a;
-    }else if(q<.62){
-      const a=(q-.28)/.34;
-      swing=-1.05 + 2.55*a;
-      avatar3d.rotation.z=-.08 + .25*a*power;
-      avatar3d.position.z=.12 - .55*Math.sin(a*Math.PI)*power;
+    let swingX=0, swingY=0, swingZ=0;
+    if(q<.22){
+      const a=q/.22;
+      // Pull weapon far behind the shoulder so the swipe is readable from the camera.
+      swingX=-1.45*a;
+      swingY=-.8*a;
+      swingZ=-.85*a;
+      avatar3d.rotation.y=.34*a*power;
+      avatar3d.rotation.z=-.12*a;
+      avatar3d.position.z=.18*a;
+    }else if(q<.68){
+      const a=(q-.22)/.46;
+      // Sweep all the way across the body and lunge forward.
+      swingX=-1.45 + 3.2*a;
+      swingY=-.8 + 2.15*a;
+      swingZ=-.85 + 2.0*a;
+      avatar3d.rotation.y=.34 - .9*a*power;
+      avatar3d.rotation.z=-.12 + .36*a*power;
+      avatar3d.position.z=.18 - .9*Math.sin(a*Math.PI)*power;
+      avatar3d.position.x=.16*Math.sin(a*Math.PI)*(attackAnim.combo===2?-1:1);
     }else{
-      const a=(q-.62)/.38;
-      swing=1.5*(1-a);
-      avatar3d.rotation.z=.17*(1-a)*power;
-      avatar3d.position.z=-.18*(1-a)*power;
+      const a=(q-.68)/.32;
+      swingX=1.75*(1-a);
+      swingY=1.35*(1-a);
+      swingZ=1.15*(1-a);
+      avatar3d.rotation.y=-.56*(1-a)*power;
+      avatar3d.rotation.z=.24*(1-a)*power;
+      avatar3d.position.z=-.22*(1-a)*power;
+      avatar3d.position.x=.1*(1-a)*(attackAnim.combo===2?-1:1);
     }
-    u.armR.rotation.x=swing;
-    u.armR.rotation.z=-.35 - .55*Math.sin(q*Math.PI);
-    u.armL.rotation.x=.35*Math.sin(q*Math.PI);
-    u.torso.rotation.y=-.18*Math.sin(q*Math.PI)*power;
-    u.head.rotation.y=.08*Math.sin(q*Math.PI);
-    u.weapon.rotation.x=-.25 + swing*.85;
-    u.weapon.rotation.z=-.25 - .55*Math.sin(q*Math.PI);
-    u.weapon.position.x=.95 + .18*Math.sin(q*Math.PI);
-    u.weapon.position.z=-.2 - .55*Math.sin(q*Math.PI)*power;
+    u.armR.rotation.x=swingX;
+    u.armR.rotation.y=swingY;
+    u.armR.rotation.z=-.25 + swingZ;
+    u.armL.rotation.x=.5*Math.sin(q*Math.PI);
+    u.armL.rotation.z=.16*Math.sin(q*Math.PI);
+    u.torso.rotation.y=-.45*Math.sin(q*Math.PI)*power;
+    u.head.rotation.y=.16*Math.sin(q*Math.PI);
+    u.weapon.rotation.x=-.45 + swingX*1.05;
+    u.weapon.rotation.y=swingY*.8;
+    u.weapon.rotation.z=-.35 + swingZ*1.15;
+    u.weapon.position.x=.95 + .45*Math.sin(q*Math.PI);
+    u.weapon.position.y=1.45 + .28*Math.sin(q*Math.PI);
+    u.weapon.position.z=-.2 - 1.05*Math.sin(q*Math.PI)*power;
     if(q>=1){
       attackAnim.active=false;
       u.torso.rotation.set(0,0,0); u.head.rotation.set(0,0,0);
-      u.armR.rotation.x=0; u.armR.rotation.z=-.08;
-      u.armL.rotation.x=0; u.armL.rotation.z=.08;
+      u.armR.rotation.set(0,0,-.08);
+      u.armL.rotation.set(0,0,.08);
       u.weapon.position.copy(u.baseWeaponPos); u.weapon.rotation.copy(u.baseWeaponRot);
-      avatar3d.position.z=0; avatar3d.rotation.z=0;
+      avatar3d.position.set(0,0,0); avatar3d.rotation.set(0,0,0);
     }
   }else{
     u.torso.rotation.y*=.75; u.head.rotation.y*=.75;
@@ -715,12 +732,17 @@ function setupLook(){
 }
 
 function dist(){ return monster ? player.position.distanceTo(monster.position) : 999; }
-function aimingAtMonster(max=5.4){
+function aimingAtMonster(max=18){
   if(!monster||!camera) return false;
   const ray=new THREE.Raycaster();
-  ray.setFromCamera(new THREE.Vector2(aim.x,aim.y),camera); ray.far=max;
-  return ray.intersectObjects(monster.children||[],true).length>0;
+  ray.setFromCamera(new THREE.Vector2(aim.x,aim.y),camera);
+  // Third-person camera sits several metres behind the fighter. A short ray made
+  // close-range hits look valid but never actually damage the enemy.
+  ray.far=max;
+  const hits=ray.intersectObject(monster,true);
+  return hits.length>0;
 }
+
 function update(){
   $('#healthText').textContent=Math.round(health); $('#healthBar').style.width=health+'%';
   $('#specialText').textContent=Math.round(special)+'%'; $('#specialBar').style.width=special+'%';
@@ -764,17 +786,17 @@ function attack(isSpecial=false){
   lastAttackAt=now;
   if(isSpecial) combo=3;
   attackCd=isSpecial?.78:(combo===3?.48:.3);
-  attackAnim={active:true,t:0,duration:isSpecial?.55:(combo===3?.46:.34),power:isSpecial?1.8:(combo===3?1.45:1),combo};
+  attackAnim={active:true,t:0,duration:isSpecial?.72:(combo===3?.62:.48),power:isSpecial?2:(combo===3?1.65:1.18),combo};
   $('#heldWeapon').classList.remove('swing'); void $('#heldWeapon').offsetWidth; $('#heldWeapon').classList.add('swing');
   setTimeout(()=>$('#heldWeapon').classList.remove('swing'),320);
   $('#comboText').textContent=isSpecial?'EMBER BLAST!':`COMBO x${combo}`;
   $('#comboHud').classList.remove('hidden'); setTimeout(()=>$('#comboHud').classList.add('hidden'),650);
   combatFx(isSpecial?2:combo===3?1.5:1,combo);
   if(isSpecial) special=0;
-  if(dist()<5.4 && aimingAtMonster(5.6)){
-    const base=[0,14,18,29][combo];
-    let dmg=isSpecial?(emberCore?82:64):base;
-    enemyHealth-=dmg;
+  if(dist()<5.8 && aimingAtMonster(18)){
+    const base=[0,18,22,36][combo];
+    let dmg=isSpecial?(emberCore?96:76):base;
+    enemyHealth=Math.max(0,enemyHealth-dmg);
     if(!isSpecial) special=Math.min(100,special+(combo===3?18:10));
     const away=monster.position.clone().sub(player.position).setY(0).normalize();
     monster.position.addScaledVector(away,isSpecial?3.8:combo===3?2.0:.75);
@@ -782,10 +804,10 @@ function attack(isSpecial=false){
     monster.rotation.x=isSpecial?.16:combo===3?.1:.04;
     setTimeout(()=>{ if(monster){ monster.rotation.z=0; monster.rotation.x=0; } },isSpecial?360:220);
     hitSparks(monster.position,isSpecial||combo===3);
-    if(monster.userData?.sprite){ monster.userData.sprite.material.color.setHex(0xff9a82); setTimeout(()=>monster?.userData?.sprite?.material?.color.setHex(0xffffff),110); }
+    if(monster.userData?.sprite){ monster.userData.sprite.material.color.setHex(0xff9a82); setTimeout(()=>{ if(monster && !won && monster.userData?.sprite?.material) monster.userData.sprite.material.color.setHex(0xffffff); },110); }
     enemyMode='stagger'; enemyTimer=isSpecial?.7:combo===3?.48:.16;
     $('#message').textContent=isSpecial?(emberCore?'EMBER CORE SPECIAL — MASSIVE HIT!':'SPECIAL HIT!'):(combo===3?'HEAVY FINISHER!':'HIT!');
-    if(enemyHealth<=0) kill();
+    if(enemyHealth<=0){ kill(); update(); return; }
   } else {
     $('#message').textContent='MISS — GET IN RANGE AND AIM';
     combo=0;
