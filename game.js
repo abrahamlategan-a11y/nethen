@@ -326,6 +326,9 @@ async function ensureThree(){
 
 let scene,camera,renderer,player,monster,clock,anim;
 let health=100,special=0,enemyHealth=100,meat=0,dead=false,won=false,blocking=false,enemyMode='hunt',enemyTimer=0,attackCd=0,dodgeCd=0,joy={x:0,y:0},yaw=0,pitch=0,drops=[];
+let grabRoots=[],currentGrabTarget=null;
+let toyBag={football:0,juggle:0,duck:0,rocket:0};
+let looseFootball=null;
 let currentLevel=1, transitioning=false;
 let goldenEmber=null, emberTouches=0, emberCore=false, emberTarget=null, emberRetarget=0;
 let combo=0,lastAttackAt=0,blockStartedAt=0;
@@ -460,12 +463,12 @@ function monsterSprite(){
 }
 
 function startRun(){
-  currentLevel=1; health=100; special=0; meat=0; transitioning=false; emberCore=false; emberTouches=0; combo=0; startLevel();
+  currentLevel=1; health=100; special=0; meat=0; transitioning=false; emberCore=false; emberTouches=0; combo=0; toyBag={football:0,juggle:0,duck:0,rocket:0}; looseFootball=null; startLevel();
 }
 function startLevel(){
   cancelAnimationFrame(anim);
   $('#gameCanvas').innerHTML='';
-  dead=false; won=false; blocking=false; enemyMode='hunt'; enemyTimer=.8; attackCd=0; dodgeCd=0; joy={x:0,y:0}; yaw=0; pitch=0; drops=[]; transitioning=false;
+  dead=false; won=false; blocking=false; enemyMode='hunt'; enemyTimer=.8; attackCd=0; dodgeCd=0; joy={x:0,y:0}; yaw=0; pitch=0; drops=[]; grabRoots=[]; currentGrabTarget=null; looseFootball=null; transitioning=false;
   $('#death').classList.add('hidden'); $('#levelClear').classList.add('hidden'); $('#runComplete').classList.add('hidden'); $('#scienceGate').classList.add('hidden'); $('#huntHud').classList.add('hidden'); $('#comboHud').classList.add('hidden');
   const cfg=LEVELS[currentLevel];
   $('#levelText').textContent=cfg.name; $('#objectiveText').textContent=cfg.objective; $('#enemyName').textContent=cfg.enemy;
@@ -479,7 +482,7 @@ function startLevel(){
   player=new THREE.Object3D(); player.position.set(0,1.7,20); player.add(camera); scene.add(player);
   renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); renderer.setSize(innerWidth,innerHeight); $('#gameCanvas').appendChild(renderer.domElement);
-  world(); clock=new THREE.Clock();
+  world(); spawnWorldToys(); clock=new THREE.Clock();
   if(cfg.kind==='hunt'){ monster=null; setupGoldenEmber(); $('#huntHud').classList.remove('hidden'); $('#message').textContent='ROAM THE NETHEN — THE GOLDEN EMBER WILL FLEE FROM YOU!'; }
   else { monster=monsterSprite(); $('#message').textContent=currentLevel===6?'FINAL BOSS — YOUR MONSTER CAME BACK MEGA!':'The next enemy is coming for you.'; }
   setupLook(); update(); loop();
@@ -510,7 +513,7 @@ function setupGoldenEmber(){
   const wing1=new THREE.Mesh(new THREE.PlaneGeometry(.9,.35),new THREE.MeshBasicMaterial({color:0xfff4bf,transparent:true,opacity:.8,side:THREE.DoubleSide})); wing1.position.x=-.85;
   const wing2=wing1.clone(); wing2.position.x=.85;
   const light=new THREE.PointLight(0xffd95a,5,16);
-  g.add(orb,ring,wing1,wing2,light); g.position.set(7,3,-12); g.userData={orb,ring,wing1,wing2,t:0}; scene.add(g); goldenEmber=g;
+  g.add(orb,ring,wing1,wing2,light); g.position.set(7,3,-12); g.userData={orb,ring,wing1,wing2,t:0,grabType:'ember',grabLabel:'GOLDEN EMBER'}; scene.add(g); grabRoots.push(g); goldenEmber=g;
   emberTarget=new THREE.Vector3(-9,3,-26); emberRetarget=0;
 }
 function pickEmberTarget(){
@@ -523,23 +526,12 @@ function updateGoldenEmber(dt){
   goldenEmber.position.y += Math.sin(u.t*4)*.005;
   emberRetarget-=dt;
   const pd=player.position.distanceTo(goldenEmber.position);
-  if(pd<6){
-    const flee=goldenEmber.position.clone().sub(player.position); flee.y=.3; if(flee.lengthSq()>.001) goldenEmber.position.addScaledVector(flee.normalize(),dt*5.8);
+  if(pd<5.2){
+    const flee=goldenEmber.position.clone().sub(player.position); flee.y=.3; if(flee.lengthSq()>.001) goldenEmber.position.addScaledVector(flee.normalize(),dt*3.5);
   }else if(emberTarget){
     const to=emberTarget.clone().sub(goldenEmber.position); if(to.length()<1||emberRetarget<=0) pickEmberTarget(); else goldenEmber.position.addScaledVector(to.normalize(),dt*2.5);
   }
   goldenEmber.position.x=Math.max(-16,Math.min(16,goldenEmber.position.x)); goldenEmber.position.z=Math.max(-34,Math.min(27,goldenEmber.position.z));
-  if(pd<1.75){
-    emberTouches++;
-    $('#emberProgress').textContent=emberTouches+'/3';
-    $('#message').textContent=emberTouches<3?`TOUCHED IT! ${emberTouches}/3 — IT ESCAPED!`:'GOLDEN EMBER CAPTURED — EMBER CORE UNLOCKED!';
-    combatFx(1.6,3);
-    if(emberTouches>=3){
-      emberCore=true; special=100; scene.remove(goldenEmber); goldenEmber=null; $('#huntHud').classList.add('hidden'); update(); transitioning=true; setTimeout(()=>completeLevel(),900);
-    }else{
-      goldenEmber.position.set((Math.random()-.5)*24,3,-24+Math.random()*44); pickEmberTarget();
-    }
-  }
 }
 
 function setupLook(){
@@ -554,10 +546,12 @@ function facing(){ let f=new THREE.Vector3(0,0,-1).applyQuaternion(player.quater
 function update(){
   $('#healthText').textContent=Math.round(health); $('#healthBar').style.width=health+'%';
   $('#specialText').textContent=Math.round(special)+'%'; $('#specialBar').style.width=special+'%';
-  const maxHp=(LEVELS[currentLevel]&&LEVELS[currentLevel].hp)||100; $('#enemyBar').style.width=Math.max(0,Math.min(100,enemyHealth/maxHp*100))+'%'; $('#specialBtn').disabled=special<100||dead||won;
+  const maxHp=(LEVELS[currentLevel]&&LEVELS[currentLevel].hp)||100; $('#enemyBar').style.width=Math.max(0,Math.min(100,enemyHealth/maxHp*100))+'%';
   $('#meatCount').textContent=$('#invMeat').textContent=meat;
   $('#coreStatus').textContent=emberCore?'UNLOCKED':'LOCKED';
-  $('#specialBtn').classList.toggle('ready',special>=100&&!dead&&!won);
+  $('#attackBtn').textContent=special>=100?'SUPER HIT':'HIT';
+  $('#attackBtn').classList.toggle('ready',special>=100&&!dead&&!won);
+  renderToyInventory();
 }
 
 
@@ -580,10 +574,13 @@ function hitSparks(pos,big=false){
   }
 }
 function attack(isSpecial=false){
+  if(dead||attackCd>0) return;
+  const footballTarget=getGrabTarget(6.5,'football');
+  if(footballTarget){ kickFootball(footballTarget); return; }
   const cfg=LEVELS[currentLevel];
-  if(cfg.kind==='hunt'){ $('#message').textContent='DON’T FIGHT IT — CHASE THE GOLDEN EMBER!'; return; }
-  if(dead||won||attackCd>0||!monster) return;
-  if(isSpecial&&special<100) return;
+  if(cfg.kind==='hunt'){ $('#message').textContent='USE GRAB WHEN THE GOLDEN EMBER IS IN YOUR CROSSHAIR!'; return; }
+  if(won||!monster) return;
+  isSpecial = special>=100;
   const now=performance.now();
   if(now-lastAttackAt<820) combo=Math.min(3,combo+1); else combo=1;
   lastAttackAt=now;
@@ -674,19 +671,15 @@ function kill(){
   for(let i=0;i<count;i++){
     let m=box(.72,.36,.46,0xb72c1f,0x5d0900);
     m.position.copy(monster.position).add(new THREE.Vector3((i-(count-1)/2)*.8,.4,(i%2?-.4:.3)));
-    scene.add(m); drops.push(m);
+    m.userData={grabType:'meat',grabLabel:'EMBER MEAT'}; scene.add(m); grabRoots.push(m); drops.push(m);
   }
-  $('#message').textContent='ENEMY DOWN — MEAT IS COMING TO YOU'; update();
+  $('#message').textContent='ENEMY DOWN — AIM AT THE MEAT AND PRESS GRAB'; update();
 }
 function collect(){
-  for(let i=drops.length-1;i>=0;i--){
-    let d=drops[i]; d.rotation.y+=.06;
-    const toPlayer=player.position.clone().sub(d.position); const distance=toPlayer.length();
-    if(distance<8){ d.position.addScaledVector(toPlayer.normalize(), .18 + Math.max(0,8-distance)*.02); }
-    if(distance<1.9){ scene.remove(d); drops.splice(i,1); meat++; special=Math.min(100,special+10); $('#inventoryBtn').classList.add('pickupPulse'); setTimeout(()=>$('#inventoryBtn').classList.remove('pickupPulse'),350); $('#message').textContent='🥩 EMBER MEAT COLLECTED'; update(); }
-  }
+  drops.forEach(d=>d.rotation.y+=.06);
   if(won && drops.length===0 && !transitioning){ transitioning=true; setTimeout(()=>completeLevel(),550); }
 }
+
 function completeLevel(){
   $('#scienceGate').classList.add('hidden');
   health=Math.min(100,health+20); update();
@@ -710,8 +703,115 @@ function loop(){
     player.position.x=Math.max(-18,Math.min(18,player.position.x));
     player.position.z=Math.max(-38,Math.min(30,player.position.z));
     if(LEVELS[currentLevel].kind==='hunt') updateGoldenEmber(dt); else { enemy(dt); collect(); }
+    updateGrabTarget(); updateLooseFootball(dt);
   }
   renderer.render(scene,camera);
+}
+
+
+function makeLabelSprite(text){
+  const c=document.createElement('canvas'); c.width=320; c.height=80; const x=c.getContext('2d');
+  x.fillStyle='rgba(20,8,5,.82)'; x.fillRect(0,10,320,60); x.strokeStyle='#ffd95a'; x.lineWidth=4; x.strokeRect(2,12,316,56);
+  x.fillStyle='#fff7df'; x.font='bold 28px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(text,160,40);
+  const tex=new THREE.CanvasTexture(c); const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true})); sp.scale.set(3.2,.8,1); return sp;
+}
+function toyObject(type,pos){
+  const g=new THREE.Group(); let main;
+  if(type==='football'){
+    main=new THREE.Mesh(new THREE.SphereGeometry(.48,18,14),new THREE.MeshStandardMaterial({color:0xf2f2f2,roughness:.75}));
+    const band=new THREE.Mesh(new THREE.TorusGeometry(.34,.045,6,18),new THREE.MeshBasicMaterial({color:0x222222})); band.rotation.x=Math.PI/2; g.add(main,band);
+  }else if(type==='juggle'){
+    [-.42,0,.42].forEach((x,i)=>{const b=new THREE.Mesh(new THREE.SphereGeometry(.24,14,10),new THREE.MeshStandardMaterial({color:[0xff3f52,0xffd95a,0x43e4ff][i],emissive:[0x551014,0x554000,0x104455][i],emissiveIntensity:.3})); b.position.x=x; g.add(b);});
+  }else if(type==='duck'){
+    const body=new THREE.Mesh(new THREE.SphereGeometry(.4,16,12),new THREE.MeshStandardMaterial({color:0xffd83e})); body.scale.set(1.2,.8,1); const head=body.clone(); head.scale.set(.65,.65,.65); head.position.set(.34,.42,0); const beak=box(.28,.12,.24,0xff8a18); beak.position.set(.66,.39,0); g.add(body,head,beak);
+  }else{
+    main=new THREE.Mesh(new THREE.CylinderGeometry(.23,.35,1.1,12),new THREE.MeshStandardMaterial({color:0xb8c7d9,metalness:.25})); main.rotation.z=Math.PI/2; const nose=new THREE.Mesh(new THREE.ConeGeometry(.24,.42,12),new THREE.MeshStandardMaterial({color:0xff5b27})); nose.rotation.z=-Math.PI/2; nose.position.x=.75; g.add(main,nose);
+  }
+  const names={football:'FOOTBALL',juggle:'JUGGLING BALLS',duck:'RUBBER DUCK',rocket:'TOY ROCKET'};
+  const label=makeLabelSprite(names[type]); label.position.y=1.25; g.add(label);
+  g.position.copy(pos); g.userData={grabType:'toy',toyType:type,grabLabel:names[type]}; scene.add(g); grabRoots.push(g); return g;
+}
+function spawnWorldToys(){
+  const types=['football','juggle','duck','rocket'];
+  types.forEach((t,i)=>toyObject(t,new THREE.Vector3((i%2?1:-1)*(5+Math.random()*8),.65,-8-i*10+Math.random()*5)));
+}
+function rootGrabObject(obj){
+  let o=obj; while(o && o!==scene){ if(o.userData?.grabType) return o; o=o.parent; } return null;
+}
+function getGrabTarget(max=6.5,onlyType=null){
+  if(!camera||!scene) return null;
+  const ray=new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2(0,0),camera); ray.far=max;
+  const hits=ray.intersectObjects(grabRoots.filter(o=>o&&o.parent),true);
+  for(const h of hits){ const root=rootGrabObject(h.object); if(root && (!onlyType || root.userData.grabType===onlyType || root.userData.toyType===onlyType)) return root; }
+  return null;
+}
+function updateGrabTarget(){
+  currentGrabTarget=getGrabTarget(6.5);
+  const c=$('#crosshair'), hint=$('#grabHint');
+  if(currentGrabTarget){ c.classList.add('grabReady'); hint.classList.remove('hidden'); hint.textContent='GRAB '+(currentGrabTarget.userData.grabLabel||'ITEM'); }
+  else { c.classList.remove('grabReady'); hint.classList.add('hidden'); }
+}
+function handReach(){
+  const h=$('#grabHand'); h.classList.remove('hidden','reach'); void h.offsetWidth; h.classList.add('reach'); setTimeout(()=>h.classList.add('hidden'),430);
+}
+function removeGrabRoot(obj){ grabRoots=grabRoots.filter(x=>x!==obj); if(obj?.parent) scene.remove(obj); }
+function grabAction(){
+  if(dead) return;
+  const t=getGrabTarget(6.5);
+  handReach();
+  if(!t){ $('#message').textContent='NOTHING TO GRAB — PUT IT IN THE CROSSHAIR'; return; }
+  const type=t.userData.grabType;
+  if(type==='ember'){
+    emberTouches++; $('#emberProgress').textContent=emberTouches+'/3'; combatFx(1.25,3);
+    if(emberTouches>=3){
+      emberCore=true; special=100; removeGrabRoot(goldenEmber); goldenEmber=null; $('#huntHud').classList.add('hidden'); $('#message').textContent='GOLDEN EMBER CAPTURED — EMBER CORE UNLOCKED!'; update(); transitioning=true; setTimeout(()=>completeLevel(),850);
+    }else{
+      $('#message').textContent=`GOT IT! ${emberTouches}/3 — IT ESCAPED AGAIN!`;
+      goldenEmber.position.set((Math.random()-.5)*24,3,-24+Math.random()*44); pickEmberTarget();
+    }
+  }else if(type==='meat'){
+    const i=drops.indexOf(t); if(i>=0) drops.splice(i,1); removeGrabRoot(t); meat++; special=Math.min(100,special+10); $('#message').textContent='🥩 MEAT GRABBED'; update();
+  }else if(type==='toy'){
+    const toy=t.userData.toyType; toyBag[toy]=(toyBag[toy]||0)+1; removeGrabRoot(t); $('#message').textContent=`FOUND: ${t.userData.grabLabel}! CHECK YOUR TOYBOX`; update();
+  }else if(type==='football'){
+    toyBag.football++; if(t===looseFootball) looseFootball=null; removeGrabRoot(t); $('#message').textContent='FOOTBALL PICKED UP'; update();
+  }
+}
+function renderToyInventory(){
+  const wrap=$('#toyInventory'); if(!wrap) return;
+  wrap.innerHTML='';
+  const rows=[['football','⚽','FOOTBALL'],['juggle','🔴','JUGGLING BALLS'],['duck','🦆','RUBBER DUCK'],['rocket','🚀','TOY ROCKET']];
+  rows.forEach(([key,icon,name])=>{
+    const n=toyBag[key]||0; if(!n) return;
+    const row=document.createElement('div'); row.className='toyRow'; row.innerHTML=`<span>${icon} ${name} <b>x${n}</b></span><button>PLAY</button>`;
+    row.querySelector('button').onclick=()=>playToy(key); wrap.appendChild(row);
+  });
+  if(!wrap.children.length) wrap.innerHTML='<small>No toys yet. Explore the Nethen and GRAB stuff.</small>';
+}
+function playToy(type){
+  if(!(toyBag[type]>0)) return;
+  $('#inventory').classList.add('hidden');
+  if(type==='juggle'){
+    const fx=$('#juggleFx'); fx.classList.remove('hidden','playing'); void fx.offsetWidth; fx.classList.add('playing'); setTimeout(()=>fx.classList.add('hidden'),4300); $('#message').textContent='JUGGLING!';
+  }else if(type==='football'){
+    if(looseFootball&&looseFootball.parent){ $('#message').textContent='YOUR FOOTBALL IS ALREADY OUT THERE'; return; }
+    const f=new THREE.Vector3(0,0,-3.5).applyQuaternion(player.quaternion).add(player.position); f.y=.52;
+    looseFootball=toyObject('football',f); looseFootball.userData.grabType='football'; looseFootball.userData.grabLabel='FOOTBALL'; looseFootball.userData.velocity=new THREE.Vector3(); toyBag.football--; update(); $('#message').textContent='FOOTBALL DROPPED — AIM AND HIT IT TO KICK';
+  }else if(type==='duck'){
+    $('#message').textContent='QUACK! THE DUCK IS DELIGHTED.'; combatFx(.7,1);
+  }else if(type==='rocket'){
+    $('#message').textContent='WHOOSH! TOY ROCKET LAUNCHED.'; combatFx(1,2);
+  }
+}
+function kickFootball(ball){
+  if(!ball?.parent) return;
+  const dir=new THREE.Vector3(0,.22,-1).applyQuaternion(player.quaternion).normalize();
+  ball.userData.velocity=dir.multiplyScalar(10); attackCd=.28; $('#message').textContent='⚽ BOOTED!'; combatFx(.8,2);
+}
+function updateLooseFootball(dt){
+  if(!looseFootball||!looseFootball.parent) return;
+  const v=looseFootball.userData.velocity; if(!v) return;
+  looseFootball.position.addScaledVector(v,dt); v.y-=5.2*dt; if(looseFootball.position.y<.5){looseFootball.position.y=.5; v.y=Math.abs(v.y)*.48;} v.multiplyScalar(Math.pow(.985,dt*60)); looseFootball.rotation.x+=v.z*dt; looseFootball.rotation.z-=v.x*dt;
 }
 
 // joystick
@@ -727,16 +827,7 @@ joyEl.onpointermove=e=>{ if(e.pointerId===joyId) joyMove(e); };
 joyEl.onpointerup=joyEl.onpointercancel=e=>{ if(e.pointerId!==joyId) return; joyId=null; joy={x:0,y:0}; knob.style.transform='translate(0,0)'; };
 
 $('#attackBtn').onclick=()=>attack(false);
-$('#specialBtn').onclick=()=>attack(true);
-$('#blockBtn').onpointerdown=()=>{blocking=true;blockStartedAt=performance.now();};
-$('#blockBtn').onpointerup=$('#blockBtn').onpointercancel=()=>blocking=false;
-$('#dodgeBtn').onclick=()=>{
-  if(dodgeCd>0||dead) return;
-  dodgeCd=1;
-  let r=new THREE.Vector3(1,0,0).applyQuaternion(player.quaternion);
-  player.position.addScaledVector(r, Math.random()>.5 ? 3.6 : -3.6);
-  $('#message').textContent='DODGE!';
-};
+$('#grabBtn').onclick=()=>grabAction();
 $('#inventoryBtn').onclick=()=>$('#inventory').classList.toggle('hidden');
 $('#invClose').onclick=()=>$('#inventory').classList.add('hidden');
 $('#eatBtn').onclick=()=>{ if(!meat) return; meat--; health=Math.min(100,health+30); special=Math.min(100,special+25); update(); };
