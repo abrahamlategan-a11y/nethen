@@ -326,6 +326,14 @@ async function ensureThree(){
 
 let scene,camera,renderer,player,monster,clock,anim;
 let health=100,special=0,enemyHealth=100,meat=0,dead=false,won=false,blocking=false,enemyMode='hunt',enemyTimer=0,attackCd=0,dodgeCd=0,joy={x:0,y:0},yaw=0,pitch=0,drops=[];
+let currentLevel=1, transitioning=false;
+const LEVELS={
+1:{name:'LEVEL 1',objective:'DEFEAT YOUR DRAWN MONSTER',enemy:'DRAWN MONSTER',hp:100,speed:1,kind:'drawn'},
+2:{name:'LEVEL 2',objective:'PASS THE SCIENCE GATE',enemy:'SCIENCE GATE',kind:'quiz'},
+3:{name:'LEVEL 3',objective:'SURVIVE THE LAVA HUNTER',enemy:'LAVA HUNTER',hp:125,speed:1.18,kind:'lava'},
+4:{name:'LEVEL 4',objective:'DEFEAT THE GINGERBREAD BOSS',enemy:'GINGERBREAD BOSS',hp:165,speed:1.08,kind:'ginger'},
+5:{name:'FINAL LEVEL',objective:'DEFEAT YOUR MEGA MONSTER',enemy:'MEGA DRAWN BOSS',hp:230,speed:1.3,kind:'mega'}
+};
 
 function mat(c,e=0){ return new THREE.MeshStandardMaterial({color:c,emissive:e,emissiveIntensity:e?0.45:0,roughness:.82}); }
 function box(x,y,z,c,e=0){ let m=new THREE.Mesh(new THREE.BoxGeometry(x,y,z), mat(c,e)); m.castShadow=true; m.receiveShadow=true; return m; }
@@ -391,8 +399,33 @@ function cutoutCanvasFromDrawing(source){
   return out;
 }
 
+
+function gingerCanvas(){
+  const c=document.createElement('canvas'); c.width=360; c.height=420; const x=c.getContext('2d');
+  x.clearRect(0,0,c.width,c.height); x.fillStyle='#b86b2f';
+  x.beginPath(); x.arc(180,92,62,0,Math.PI*2); x.fill();
+  x.fillRect(115,145,130,145); x.fillRect(54,165,75,38); x.fillRect(231,165,75,38); x.fillRect(126,270,42,115); x.fillRect(192,270,42,115);
+  x.fillStyle='#fff'; x.beginPath(); x.arc(155,78,12,0,Math.PI*2); x.arc(205,78,12,0,Math.PI*2); x.fill();
+  x.strokeStyle='#fff'; x.lineWidth=10; x.beginPath(); x.arc(180,105,28,0.15*Math.PI,.85*Math.PI); x.stroke();
+  x.fillStyle='#ff3d45'; x.beginPath(); x.arc(180,190,13,0,Math.PI*2); x.fill(); x.fillStyle='#35c76f'; x.beginPath(); x.arc(180,228,13,0,Math.PI*2); x.fill();
+  return c;
+}
+function lavaCanvas(){
+  const c=document.createElement('canvas'); c.width=360; c.height=420; const x=c.getContext('2d'); x.clearRect(0,0,c.width,c.height);
+  x.fillStyle='#37140e'; x.beginPath(); x.moveTo(180,30); x.lineTo(300,120); x.lineTo(270,330); x.lineTo(180,398); x.lineTo(80,325); x.lineTo(50,120); x.closePath(); x.fill();
+  x.strokeStyle='#ff6a18'; x.lineWidth=24; [[95,120,150,210],[260,100,205,220],[115,285,170,245],[255,300,205,250]].forEach(a=>{x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(a[2],a[3]);x.stroke()});
+  x.fillStyle='#ffd95a'; x.beginPath(); x.arc(130,170,16,0,Math.PI*2); x.arc(230,170,16,0,Math.PI*2); x.fill();
+  return c;
+}
+function enemyArtForLevel(){
+  const kind=LEVELS[currentLevel].kind;
+  if(kind==='ginger') return gingerCanvas();
+  if(kind==='lava') return lavaCanvas();
+  return cutoutCanvasFromDrawing(canv);
+}
+
 function monsterSprite(){
-  const cut = cutoutCanvasFromDrawing(canv);
+  const cut = enemyArtForLevel();
   const tex = new THREE.CanvasTexture(cut);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;
@@ -400,7 +433,7 @@ function monsterSprite(){
   const group = new THREE.Group();
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,alphaTest:0.12}));
   const aspect = cut.width/cut.height;
-  const h = 4.8;
+  const h = currentLevel===5 ? 6.2 : currentLevel===4 ? 5.6 : 4.8;
   sprite.scale.set(Math.max(3, h*aspect), h, 1);
   sprite.position.set(0,2.4,0);
   group.add(sprite);
@@ -410,6 +443,11 @@ function monsterSprite(){
   const armL = box(.28,1.5,.28,0x4d261c,0xff4e12); armL.position.set(-1.55,2.25,-.08);
   const armR = box(.28,1.5,.28,0x4d261c,0xff4e12); armR.position.set(1.55,2.25,-.08);
   const blade = box(.22,2.2,.22,0x222222); blade.position.set(2.25,2.45,0); blade.rotation.z=.6;
+  if(currentLevel===5){
+    const cannon=box(.55,1.8,.55,0x3b4452,0xff5a1f); cannon.position.set(-2.2,2.8,.1); cannon.rotation.z=-.65; group.add(cannon);
+    const horn1=box(.28,1.3,.28,0x24100c,0xff3b10); horn1.position.set(-1.0,4.9,0); horn1.rotation.z=-.45;
+    const horn2=box(.28,1.3,.28,0x24100c,0xff3b10); horn2.position.set(1.0,4.9,0); horn2.rotation.z=.45; group.add(horn1,horn2);
+  }
   const glow = new THREE.PointLight(0xff5a24,4.8,15); glow.position.set(0,2.5,1);
   group.add(legL,legR,armL,armR,blade,glow);
   group.userData = {sprite, legL, legR, armL, armR, blade, walk:0};
@@ -418,20 +456,46 @@ function monsterSprite(){
   return group;
 }
 
-function init(){
+function startRun(){
+  currentLevel=1; health=100; special=0; meat=0; transitioning=false; startLevel();
+}
+function startLevel(){
   cancelAnimationFrame(anim);
   $('#gameCanvas').innerHTML='';
-  health=100; special=0; enemyHealth=100; meat=0; dead=false; won=false; blocking=false; enemyMode='hunt'; enemyTimer=.8; attackCd=0; dodgeCd=0; joy={x:0,y:0}; yaw=0; pitch=0; drops=[];
+  dead=false; won=false; blocking=false; enemyMode='hunt'; enemyTimer=.8; attackCd=0; dodgeCd=0; joy={x:0,y:0}; yaw=0; pitch=0; drops=[]; transitioning=false;
+  $('#death').classList.add('hidden'); $('#levelClear').classList.add('hidden'); $('#runComplete').classList.add('hidden'); $('#scienceGate').classList.add('hidden');
+  const cfg=LEVELS[currentLevel];
+  $('#levelText').textContent=cfg.name; $('#objectiveText').textContent=cfg.objective; $('#enemyName').textContent=cfg.enemy;
+  if(cfg.kind==='quiz'){
+    $('#enemyHud').classList.add('hidden'); $('#message').textContent='The Science Gate blocks the path.'; update(); showScienceGate(); return;
+  }
+  $('#enemyHud').classList.remove('hidden');
+  enemyHealth=cfg.hp;
   scene=new THREE.Scene();
   camera=new THREE.PerspectiveCamera(72, innerWidth/innerHeight, .1, 120);
   player=new THREE.Object3D(); player.position.set(0,1.7,20); player.add(camera); scene.add(player);
   renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); renderer.setSize(innerWidth,innerHeight); $('#gameCanvas').appendChild(renderer.domElement);
   world(); monster=monsterSprite(); clock=new THREE.Clock();
-  $('#enemyName').textContent = $('#nameInput').value ? `${$('#nameInput').value}'S MONSTER` : 'DRAWN MONSTER';
-  $('#death').classList.add('hidden'); $('#victory').classList.add('hidden'); delete $('#victory').dataset.shown;
-  $('#message').textContent='Your cutout monster is alive in the Nethen. Hunt or be hunted.';
+  $('#message').textContent=currentLevel===5?'FINAL BOSS — YOUR MONSTER CAME BACK MEGA!':'The next enemy is coming for you.';
   setupLook(); update(); loop();
+}
+
+function showScienceGate(){
+  const qs=[
+    {q:'Which planet is known as the Red Planet?',a:['Mars','Venus','Jupiter','Mercury'],c:0},
+    {q:'What gas do plants take in from the air?',a:['Oxygen','Carbon dioxide','Helium','Hydrogen'],c:1},
+    {q:'Which force pulls things toward Earth?',a:['Magnetism','Gravity','Friction','Electricity'],c:1},
+    {q:'What is water called when it becomes a gas?',a:['Steam / water vapour','Ice','Salt','Cloud rock'],c:0}
+  ];
+  const q=qs[Math.floor(Math.random()*qs.length)];
+  $('#scienceQuestion').textContent=q.q; $('#scienceFeedback').textContent='';
+  const wrap=$('#scienceAnswers'); wrap.innerHTML='';
+  q.a.forEach((ans,i)=>{ const b=document.createElement('button'); b.textContent=ans; b.onclick=()=>{
+    if(i===q.c){ b.classList.add('correct'); $('#scienceFeedback').textContent='CORRECT! Special bar boosted.'; special=Math.min(100,special+35); update(); setTimeout(()=>completeLevel(),650); }
+    else { b.classList.add('wrong'); $('#scienceFeedback').textContent='Try another answer.'; }
+  }; wrap.appendChild(b); });
+  $('#scienceGate').classList.remove('hidden');
 }
 
 function setupLook(){
@@ -446,7 +510,7 @@ function facing(){ let f=new THREE.Vector3(0,0,-1).applyQuaternion(player.quater
 function update(){
   $('#healthText').textContent=Math.round(health); $('#healthBar').style.width=health+'%';
   $('#specialText').textContent=Math.round(special)+'%'; $('#specialBar').style.width=special+'%';
-  $('#enemyBar').style.width=Math.max(0,enemyHealth)+'%'; $('#specialBtn').disabled=special<100||dead||won;
+  const maxHp=(LEVELS[currentLevel]&&LEVELS[currentLevel].hp)||100; $('#enemyBar').style.width=Math.max(0,Math.min(100,enemyHealth/maxHp*100))+'%'; $('#specialBtn').disabled=special<100||dead||won;
   $('#meatCount').textContent=$('#invMeat').textContent=meat;
 }
 
@@ -482,7 +546,7 @@ function enemy(dt){
   let d=dist(), dir=player.position.clone().sub(monster.position); dir.y=0;
   animateMonster(dt);
   if(enemyMode==='hunt'){
-    let speed = d>16 ? 5.2 : d>10 ? 4.3 : d>5 ? 3.2 : 2.1;
+    let mult=(LEVELS[currentLevel].speed||1); let speed = (d>16 ? 5.2 : d>10 ? 4.3 : d>5 ? 3.2 : 2.1)*mult;
     if(dir.lengthSq()>.001) monster.position.addScaledVector(dir.normalize(), dt*speed);
     enemyTimer -= dt;
     if(d<4.4 && enemyTimer<=0){
@@ -511,20 +575,32 @@ function enemy(dt){
 
 function kill(){
   enemyHealth=0; won=true; monster.visible=false;
-  for(let i=0;i<3;i++){
-    let m=box(.7,.35,.45,0xb72c1f,0x5d0900);
-    m.position.copy(monster.position).add(new THREE.Vector3(i-1,.35,(i%2?-.4:.3)));
+  const count=currentLevel===4?4:3;
+  for(let i=0;i<count;i++){
+    let m=box(.72,.36,.46,0xb72c1f,0x5d0900);
+    m.position.copy(monster.position).add(new THREE.Vector3((i-(count-1)/2)*.8,.4,(i%2?-.4:.3)));
     scene.add(m); drops.push(m);
   }
-  $('#message').textContent='MONSTER DOWN — COLLECT THE MEAT'; update();
+  $('#message').textContent='ENEMY DOWN — MEAT IS COMING TO YOU'; update();
 }
-
 function collect(){
   for(let i=drops.length-1;i>=0;i--){
-    let d=drops[i]; d.rotation.y += .04;
-    if(player.position.distanceTo(d.position)<1.7){ scene.remove(d); drops.splice(i,1); meat++; special=Math.min(100,special+10); $('#message').textContent='🥩 EMBER MEAT COLLECTED'; update(); }
+    let d=drops[i]; d.rotation.y+=.06;
+    const toPlayer=player.position.clone().sub(d.position); const distance=toPlayer.length();
+    if(distance<8){ d.position.addScaledVector(toPlayer.normalize(), .18 + Math.max(0,8-distance)*.02); }
+    if(distance<1.9){ scene.remove(d); drops.splice(i,1); meat++; special=Math.min(100,special+10); $('#inventoryBtn').classList.add('pickupPulse'); setTimeout(()=>$('#inventoryBtn').classList.remove('pickupPulse'),350); $('#message').textContent='🥩 EMBER MEAT COLLECTED'; update(); }
   }
-  if(won && drops.length===0 && !$('#victory').dataset.shown){ $('#victory').dataset.shown='1'; $('#victory').classList.remove('hidden'); }
+  if(won && drops.length===0 && !transitioning){ transitioning=true; setTimeout(()=>completeLevel(),550); }
+}
+function completeLevel(){
+  $('#scienceGate').classList.add('hidden');
+  health=Math.min(100,health+20); update();
+  if(currentLevel>=5){ $('#runComplete').classList.remove('hidden'); return; }
+  currentLevel++;
+  $('#clearTitle').textContent='LEVEL COMPLETE!';
+  $('#clearText').textContent=`Next: ${LEVELS[currentLevel].objective}`;
+  $('#levelClear').classList.remove('hidden');
+  setTimeout(()=>{ if(!$('#levelClear').classList.contains('hidden')){ $('#levelClear').classList.add('hidden'); startLevel(); } },1400);
 }
 
 function loop(){
@@ -569,16 +645,17 @@ $('#dodgeBtn').onclick=()=>{
 $('#inventoryBtn').onclick=()=>$('#inventory').classList.toggle('hidden');
 $('#invClose').onclick=()=>$('#inventory').classList.add('hidden');
 $('#eatBtn').onclick=()=>{ if(!meat) return; meat--; health=Math.min(100,health+30); special=Math.min(100,special+25); update(); };
-$('#retryBtn').onclick=()=>init();
-$('#againBtn').onclick=()=>init();
+$('#retryBtn').onclick=()=>{ health=100; startLevel(); };
+$('#nextLevelBtn').onclick=()=>{ $('#levelClear').classList.add('hidden'); startLevel(); };
+$('#completeMenu').onclick=()=>show('title');
+$('#completeCreator').onclick=()=>show('creator');
 $('#deathCreator').onclick=()=>show('creator');
 $('#deathMenu').onclick=()=>show('title');
-$('#victoryDraw').onclick=()=>show('draw');
-$('#victoryMenu').onclick=()=>show('title');
+
 
 $('#enterBtn').onclick=async()=>{
   let b=$('#enterBtn'); b.disabled=true; b.textContent='OPENING NETHEN…';
-  try{ await ensureThree(); show('game'); setTimeout(init,50); }
+  try{ await ensureThree(); show('game'); setTimeout(startRun,50); }
   catch(e){ alert('3D world could not load. Check the internet and try again.'); }
   finally{ b.disabled=false; b.textContent='ENTER THE NETHEN →'; }
 };

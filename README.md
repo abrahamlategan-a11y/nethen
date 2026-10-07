@@ -1,10 +1,13 @@
-# NETHEN v0.5
+# NETHEN v0.6
 
-Aubrey's latest playable build.
+Aubrey's level-run build.
 
-## New in v0.5
-- much deeper character customisation with more face, brows, mouth, hair, hat, armour, boots and weapon options
-- your drawn monster is turned into a transparent cutout creature instead of a white square
-- the monster now has simple animated limbs and a walking bob so it feels alive
-- faster, more obvious monster pursuit
-- brighter, more active Nethen lighting and extra lava ambience
+## New in v0.6
+- winning no longer kicks you to a replay/menu choice
+- the game now progresses through multiple levels in one run
+- Level 1: drawn monster
+- Level 2: science gate
+- Level 3: lava hunter fight
+- Level 4: gingerbread boss
+- Level 5: mega version of your drawn monster
+- meat drops now magnet toward the player and auto-collect reliably
