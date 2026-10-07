@@ -327,12 +327,15 @@ async function ensureThree(){
 let scene,camera,renderer,player,monster,clock,anim;
 let health=100,special=0,enemyHealth=100,meat=0,dead=false,won=false,blocking=false,enemyMode='hunt',enemyTimer=0,attackCd=0,dodgeCd=0,joy={x:0,y:0},yaw=0,pitch=0,drops=[];
 let currentLevel=1, transitioning=false;
+let goldenEmber=null, emberTouches=0, emberCore=false, emberTarget=null, emberRetarget=0;
+let combo=0,lastAttackAt=0,blockStartedAt=0;
 const LEVELS={
-1:{name:'LEVEL 1',objective:'DEFEAT YOUR DRAWN MONSTER',enemy:'DRAWN MONSTER',hp:100,speed:1,kind:'drawn'},
-2:{name:'LEVEL 2',objective:'PASS THE SCIENCE GATE',enemy:'SCIENCE GATE',kind:'quiz'},
-3:{name:'LEVEL 3',objective:'SURVIVE THE LAVA HUNTER',enemy:'LAVA HUNTER',hp:125,speed:1.18,kind:'lava'},
-4:{name:'LEVEL 4',objective:'DEFEAT THE GINGERBREAD BOSS',enemy:'GINGERBREAD BOSS',hp:165,speed:1.08,kind:'ginger'},
-5:{name:'FINAL LEVEL',objective:'DEFEAT YOUR MEGA MONSTER',enemy:'MEGA DRAWN BOSS',hp:230,speed:1.3,kind:'mega'}
+1:{name:'LEVEL 1',objective:'DEFEAT YOUR DRAWN MONSTER',enemy:'DRAWN MONSTER',hp:120,speed:1.03,kind:'drawn'},
+2:{name:'LEVEL 2',objective:'FIND THE GOLDEN EMBER',enemy:'GOLDEN EMBER',kind:'hunt'},
+3:{name:'LEVEL 3',objective:'PASS THE SCIENCE GATE',enemy:'SCIENCE GATE',kind:'quiz'},
+4:{name:'LEVEL 4',objective:'SURVIVE THE LAVA HUNTER',enemy:'LAVA HUNTER',hp:155,speed:1.24,kind:'lava'},
+5:{name:'LEVEL 5',objective:'DEFEAT THE GINGERBREAD BOSS',enemy:'GINGERBREAD BOSS',hp:220,speed:1.16,kind:'ginger'},
+6:{name:'FINAL LEVEL',objective:'DEFEAT YOUR MEGA MONSTER',enemy:'MEGA DRAWN BOSS',hp:320,speed:1.36,kind:'mega'}
 };
 
 function mat(c,e=0){ return new THREE.MeshStandardMaterial({color:c,emissive:e,emissiveIntensity:e?0.45:0,roughness:.82}); }
@@ -433,7 +436,7 @@ function monsterSprite(){
   const group = new THREE.Group();
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,alphaTest:0.12}));
   const aspect = cut.width/cut.height;
-  const h = currentLevel===5 ? 6.2 : currentLevel===4 ? 5.6 : 4.8;
+  const h = currentLevel===6 ? 6.4 : currentLevel===5 ? 5.8 : 4.8;
   sprite.scale.set(Math.max(3, h*aspect), h, 1);
   sprite.position.set(0,2.4,0);
   group.add(sprite);
@@ -443,7 +446,7 @@ function monsterSprite(){
   const armL = box(.28,1.5,.28,0x4d261c,0xff4e12); armL.position.set(-1.55,2.25,-.08);
   const armR = box(.28,1.5,.28,0x4d261c,0xff4e12); armR.position.set(1.55,2.25,-.08);
   const blade = box(.22,2.2,.22,0x222222); blade.position.set(2.25,2.45,0); blade.rotation.z=.6;
-  if(currentLevel===5){
+  if(currentLevel===6){
     const cannon=box(.55,1.8,.55,0x3b4452,0xff5a1f); cannon.position.set(-2.2,2.8,.1); cannon.rotation.z=-.65; group.add(cannon);
     const horn1=box(.28,1.3,.28,0x24100c,0xff3b10); horn1.position.set(-1.0,4.9,0); horn1.rotation.z=-.45;
     const horn2=box(.28,1.3,.28,0x24100c,0xff3b10); horn2.position.set(1.0,4.9,0); horn2.rotation.z=.45; group.add(horn1,horn2);
@@ -457,27 +460,28 @@ function monsterSprite(){
 }
 
 function startRun(){
-  currentLevel=1; health=100; special=0; meat=0; transitioning=false; startLevel();
+  currentLevel=1; health=100; special=0; meat=0; transitioning=false; emberCore=false; emberTouches=0; combo=0; startLevel();
 }
 function startLevel(){
   cancelAnimationFrame(anim);
   $('#gameCanvas').innerHTML='';
   dead=false; won=false; blocking=false; enemyMode='hunt'; enemyTimer=.8; attackCd=0; dodgeCd=0; joy={x:0,y:0}; yaw=0; pitch=0; drops=[]; transitioning=false;
-  $('#death').classList.add('hidden'); $('#levelClear').classList.add('hidden'); $('#runComplete').classList.add('hidden'); $('#scienceGate').classList.add('hidden');
+  $('#death').classList.add('hidden'); $('#levelClear').classList.add('hidden'); $('#runComplete').classList.add('hidden'); $('#scienceGate').classList.add('hidden'); $('#huntHud').classList.add('hidden'); $('#comboHud').classList.add('hidden');
   const cfg=LEVELS[currentLevel];
   $('#levelText').textContent=cfg.name; $('#objectiveText').textContent=cfg.objective; $('#enemyName').textContent=cfg.enemy;
   if(cfg.kind==='quiz'){
     $('#enemyHud').classList.add('hidden'); $('#message').textContent='The Science Gate blocks the path.'; update(); showScienceGate(); return;
   }
-  $('#enemyHud').classList.remove('hidden');
+  $('#enemyHud').classList.toggle('hidden',cfg.kind==='hunt');
   enemyHealth=cfg.hp;
   scene=new THREE.Scene();
   camera=new THREE.PerspectiveCamera(72, innerWidth/innerHeight, .1, 120);
   player=new THREE.Object3D(); player.position.set(0,1.7,20); player.add(camera); scene.add(player);
   renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); renderer.setSize(innerWidth,innerHeight); $('#gameCanvas').appendChild(renderer.domElement);
-  world(); monster=monsterSprite(); clock=new THREE.Clock();
-  $('#message').textContent=currentLevel===5?'FINAL BOSS — YOUR MONSTER CAME BACK MEGA!':'The next enemy is coming for you.';
+  world(); clock=new THREE.Clock();
+  if(cfg.kind==='hunt'){ monster=null; setupGoldenEmber(); $('#huntHud').classList.remove('hidden'); $('#message').textContent='ROAM THE NETHEN — THE GOLDEN EMBER WILL FLEE FROM YOU!'; }
+  else { monster=monsterSprite(); $('#message').textContent=currentLevel===6?'FINAL BOSS — YOUR MONSTER CAME BACK MEGA!':'The next enemy is coming for you.'; }
   setupLook(); update(); loop();
 }
 
@@ -498,6 +502,46 @@ function showScienceGate(){
   $('#scienceGate').classList.remove('hidden');
 }
 
+function setupGoldenEmber(){
+  emberTouches=0; $('#emberProgress').textContent='0/3';
+  const g=new THREE.Group();
+  const orb=new THREE.Mesh(new THREE.SphereGeometry(.48,16,12),new THREE.MeshStandardMaterial({color:0xffd95a,emissive:0xffa400,emissiveIntensity:1.8,roughness:.25,metalness:.25}));
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.8,.08,8,28),new THREE.MeshBasicMaterial({color:0xfff1a1})); ring.rotation.x=Math.PI/2;
+  const wing1=new THREE.Mesh(new THREE.PlaneGeometry(.9,.35),new THREE.MeshBasicMaterial({color:0xfff4bf,transparent:true,opacity:.8,side:THREE.DoubleSide})); wing1.position.x=-.85;
+  const wing2=wing1.clone(); wing2.position.x=.85;
+  const light=new THREE.PointLight(0xffd95a,5,16);
+  g.add(orb,ring,wing1,wing2,light); g.position.set(7,3,-12); g.userData={orb,ring,wing1,wing2,t:0}; scene.add(g); goldenEmber=g;
+  emberTarget=new THREE.Vector3(-9,3,-26); emberRetarget=0;
+}
+function pickEmberTarget(){
+  emberTarget=new THREE.Vector3((Math.random()-.5)*30,2.2+Math.random()*4,-30+Math.random()*58); emberRetarget=2+Math.random()*2.5;
+}
+function updateGoldenEmber(dt){
+  if(!goldenEmber||dead) return;
+  const u=goldenEmber.userData; u.t+=dt;
+  u.ring.rotation.z+=dt*2.8; u.wing1.rotation.y=Math.sin(u.t*13)*.8; u.wing2.rotation.y=-Math.sin(u.t*13)*.8;
+  goldenEmber.position.y += Math.sin(u.t*4)*.005;
+  emberRetarget-=dt;
+  const pd=player.position.distanceTo(goldenEmber.position);
+  if(pd<6){
+    const flee=goldenEmber.position.clone().sub(player.position); flee.y=.3; if(flee.lengthSq()>.001) goldenEmber.position.addScaledVector(flee.normalize(),dt*5.8);
+  }else if(emberTarget){
+    const to=emberTarget.clone().sub(goldenEmber.position); if(to.length()<1||emberRetarget<=0) pickEmberTarget(); else goldenEmber.position.addScaledVector(to.normalize(),dt*2.5);
+  }
+  goldenEmber.position.x=Math.max(-16,Math.min(16,goldenEmber.position.x)); goldenEmber.position.z=Math.max(-34,Math.min(27,goldenEmber.position.z));
+  if(pd<1.75){
+    emberTouches++;
+    $('#emberProgress').textContent=emberTouches+'/3';
+    $('#message').textContent=emberTouches<3?`TOUCHED IT! ${emberTouches}/3 — IT ESCAPED!`:'GOLDEN EMBER CAPTURED — EMBER CORE UNLOCKED!';
+    combatFx(1.6,3);
+    if(emberTouches>=3){
+      emberCore=true; special=100; scene.remove(goldenEmber); goldenEmber=null; $('#huntHud').classList.add('hidden'); update(); transitioning=true; setTimeout(()=>completeLevel(),900);
+    }else{
+      goldenEmber.position.set((Math.random()-.5)*24,3,-24+Math.random()*44); pickEmberTarget();
+    }
+  }
+}
+
 function setupLook(){
   let c=renderer.domElement, drag=false, lx=0, ly=0;
   c.onpointerdown=e=>{ if(e.clientX < innerWidth*.38) return; drag=true; lx=e.clientX; ly=e.clientY; };
@@ -512,19 +556,61 @@ function update(){
   $('#specialText').textContent=Math.round(special)+'%'; $('#specialBar').style.width=special+'%';
   const maxHp=(LEVELS[currentLevel]&&LEVELS[currentLevel].hp)||100; $('#enemyBar').style.width=Math.max(0,Math.min(100,enemyHealth/maxHp*100))+'%'; $('#specialBtn').disabled=special<100||dead||won;
   $('#meatCount').textContent=$('#invMeat').textContent=meat;
+  $('#coreStatus').textContent=emberCore?'UNLOCKED':'LOCKED';
+  $('#specialBtn').classList.toggle('ready',special>=100&&!dead&&!won);
 }
 
-function attack(s=false){
-  if(dead||won||attackCd>0) return;
-  if(s&&special<100) return;
-  attackCd=s?.7:.35;
-  $('#heldWeapon').classList.add('swing'); setTimeout(()=>$('#heldWeapon').classList.remove('swing'),280);
-  if(s) special=0;
-  if(dist()<5.4 && facing()){
-    let dmg=s?50:18; enemyHealth-=dmg; if(!s) special=Math.min(100,special+14);
-    $('#message').textContent=s?'MEGA SPECIAL!':'HIT!';
+
+function combatFx(power=1,comboStep=1){
+  const slash=$('#slashFx'); slash.className='slashFx s'+Math.min(3,comboStep); slash.classList.remove('hidden');
+  setTimeout(()=>slash.classList.add('hidden'),power>1?310:220);
+  const flash=$('#hitFlash'); flash.classList.remove('hidden'); flash.style.opacity=power>1?'.8':'.45';
+  setTimeout(()=>flash.classList.add('hidden'),power>1?130:70);
+  const gc=$('#gameCanvas'); gc.classList.remove('shake','bigShake'); void gc.offsetWidth; gc.classList.add(power>1?'bigShake':'shake');
+  setTimeout(()=>gc.classList.remove('shake','bigShake'),320);
+}
+function hitSparks(pos,big=false){
+  for(let i=0;i<(big?18:8);i++){
+    let p=box(big?.13:.09,big?.13:.09,big?.13:.09,0xffe279,0xff7a18);
+    p.position.copy(pos).add(new THREE.Vector3((Math.random()-.5)*1.4,1.8+Math.random()*2,(Math.random()-.5)*1.4));
+    scene.add(p);
+    const dir=new THREE.Vector3((Math.random()-.5)*.14,.05+Math.random()*.12,(Math.random()-.5)*.14);
+    let life=0;
+    const id=setInterval(()=>{ life+=1; p.position.add(dir); p.scale.multiplyScalar(.9); if(life>10){clearInterval(id);scene.remove(p);} },16);
+  }
+}
+function attack(isSpecial=false){
+  const cfg=LEVELS[currentLevel];
+  if(cfg.kind==='hunt'){ $('#message').textContent='DON’T FIGHT IT — CHASE THE GOLDEN EMBER!'; return; }
+  if(dead||won||attackCd>0||!monster) return;
+  if(isSpecial&&special<100) return;
+  const now=performance.now();
+  if(now-lastAttackAt<820) combo=Math.min(3,combo+1); else combo=1;
+  lastAttackAt=now;
+  if(isSpecial) combo=3;
+  attackCd=isSpecial?.78:(combo===3?.48:.3);
+  $('#heldWeapon').classList.remove('swing'); void $('#heldWeapon').offsetWidth; $('#heldWeapon').classList.add('swing');
+  setTimeout(()=>$('#heldWeapon').classList.remove('swing'),320);
+  $('#comboText').textContent=isSpecial?'EMBER BLAST!':`COMBO x${combo}`;
+  $('#comboHud').classList.remove('hidden'); setTimeout(()=>$('#comboHud').classList.add('hidden'),650);
+  combatFx(isSpecial?2:combo===3?1.5:1,combo);
+  if(isSpecial) special=0;
+  if(dist()<5.0 && facing()){
+    const base=[0,14,18,29][combo];
+    let dmg=isSpecial?(emberCore?82:64):base;
+    enemyHealth-=dmg;
+    if(!isSpecial) special=Math.min(100,special+(combo===3?18:10));
+    const away=monster.position.clone().sub(player.position).setY(0).normalize();
+    monster.position.addScaledVector(away,isSpecial?3.8:combo===3?2.0:.75);
+    hitSparks(monster.position,isSpecial||combo===3);
+    if(monster.userData?.sprite){ monster.userData.sprite.material.color.setHex(0xff9a82); setTimeout(()=>monster?.userData?.sprite?.material?.color.setHex(0xffffff),110); }
+    enemyMode='stagger'; enemyTimer=isSpecial?.7:combo===3?.48:.16;
+    $('#message').textContent=isSpecial?(emberCore?'EMBER CORE SPECIAL — MASSIVE HIT!':'SPECIAL HIT!'):(combo===3?'HEAVY FINISHER!':'HIT!');
     if(enemyHealth<=0) kill();
-  }else $('#message').textContent='GET CLOSER AND AIM AT IT';
+  } else {
+    $('#message').textContent='MISS — GET IN RANGE AND AIM';
+    combo=0;
+  }
   update();
 }
 
@@ -542,40 +628,49 @@ function animateMonster(dt){
 }
 
 function enemy(dt){
-  if(dead||won) return;
+  if(dead||won||!monster) return;
   let d=dist(), dir=player.position.clone().sub(monster.position); dir.y=0;
   animateMonster(dt);
+  if(enemyMode==='stagger'){
+    enemyTimer-=dt;
+    if(enemyTimer<=0){ enemyMode='hunt'; enemyTimer=.55; }
+    return;
+  }
   if(enemyMode==='hunt'){
-    let mult=(LEVELS[currentLevel].speed||1); let speed = (d>16 ? 5.2 : d>10 ? 4.3 : d>5 ? 3.2 : 2.1)*mult;
-    if(dir.lengthSq()>.001) monster.position.addScaledVector(dir.normalize(), dt*speed);
-    enemyTimer -= dt;
-    if(d<4.4 && enemyTimer<=0){
-      enemyMode='windup'; enemyTimer=.72; $('#warning').classList.remove('hidden'); $('#message').textContent='BLOCK OR DODGE!'; monster.scale.set(1.12,1.12,1.12);
-      if(monster.userData) monster.userData.blade.rotation.z = 1.2;
+    let mult=(LEVELS[currentLevel].speed||1); let speed=(d>16?5.4:d>10?4.6:d>5?3.5:2.2)*mult;
+    if(dir.lengthSq()>.001) monster.position.addScaledVector(dir.normalize(),dt*speed);
+    enemyTimer-=dt;
+    if(d<4.5&&enemyTimer<=0){
+      enemyMode='windup'; enemyTimer=.9; $('#warning').classList.remove('hidden'); $('#message').textContent='INCOMING — TIME YOUR BLOCK OR DODGE!'; monster.scale.set(1.14,1.14,1.14);
+      if(monster.userData) monster.userData.blade.rotation.z=1.35;
     }
-  } else if(enemyMode==='windup'){
-    enemyTimer -= dt;
+  }else if(enemyMode==='windup'){
+    enemyTimer-=dt;
     if(enemyTimer<=0){
       $('#warning').classList.add('hidden');
-      if(d<4.8){
-        let hit = blocking ? 4 : 19;
-        health = Math.max(0, health-hit);
-        $('#message').textContent = blocking ? 'BLOCKED! + SPECIAL' : 'SMASHED!';
-        if(blocking) special = Math.min(100, special+14);
-      } else $('#message').textContent='NICE DODGE!';
-      monster.scale.set(1,1,1); enemyMode='recover'; enemyTimer=.55;
-      if(health<=0){ dead=true; $('#death').classList.remove('hidden'); }
+      if(d<5.0){
+        const perfect=blocking && performance.now()-blockStartedAt<430;
+        if(perfect){
+          $('#message').textContent='PERFECT PARRY!'; special=Math.min(100,special+28); combatFx(1.4,3);
+          const away=monster.position.clone().sub(player.position).setY(0).normalize(); monster.position.addScaledVector(away,2.4); enemyMode='stagger'; enemyTimer=.72;
+        }else{
+          let hit=blocking?6:22; health=Math.max(0,health-hit); $('#message').textContent=blocking?'BLOCKED — BUT IT STILL HURT!':'CRUSHING HIT!';
+          if(blocking) special=Math.min(100,special+10); combatFx(blocking?1:1.5,1); enemyMode='recover'; enemyTimer=.58;
+        }
+      }else{ $('#message').textContent='NICE DODGE!'; enemyMode='recover'; enemyTimer=.5; }
+      monster.scale.set(1,1,1);
+      if(health<=0){dead=true;$('#death').classList.remove('hidden');}
       update();
     }
-  } else {
-    enemyTimer -= dt;
-    if(enemyTimer<=0){ enemyMode='hunt'; enemyTimer=.9+Math.random()*.35; }
+  }else{
+    enemyTimer-=dt;
+    if(enemyTimer<=0){enemyMode='hunt';enemyTimer=.72+Math.random()*.3;}
   }
 }
 
 function kill(){
   enemyHealth=0; won=true; monster.visible=false;
-  const count=currentLevel===4?4:3;
+  const count=currentLevel===5?4:3;
   for(let i=0;i<count;i++){
     let m=box(.72,.36,.46,0xb72c1f,0x5d0900);
     m.position.copy(monster.position).add(new THREE.Vector3((i-(count-1)/2)*.8,.4,(i%2?-.4:.3)));
@@ -595,7 +690,7 @@ function collect(){
 function completeLevel(){
   $('#scienceGate').classList.add('hidden');
   health=Math.min(100,health+20); update();
-  if(currentLevel>=5){ $('#runComplete').classList.remove('hidden'); return; }
+  if(currentLevel>=6){ $('#runComplete').classList.remove('hidden'); return; }
   currentLevel++;
   $('#clearTitle').textContent='LEVEL COMPLETE!';
   $('#clearText').textContent=`Next: ${LEVELS[currentLevel].objective}`;
@@ -614,7 +709,7 @@ function loop(){
     player.position.addScaledVector(f, -joy.y*6.6*dt);
     player.position.x=Math.max(-18,Math.min(18,player.position.x));
     player.position.z=Math.max(-38,Math.min(30,player.position.z));
-    enemy(dt); collect();
+    if(LEVELS[currentLevel].kind==='hunt') updateGoldenEmber(dt); else { enemy(dt); collect(); }
   }
   renderer.render(scene,camera);
 }
@@ -633,7 +728,7 @@ joyEl.onpointerup=joyEl.onpointercancel=e=>{ if(e.pointerId!==joyId) return; joy
 
 $('#attackBtn').onclick=()=>attack(false);
 $('#specialBtn').onclick=()=>attack(true);
-$('#blockBtn').onpointerdown=()=>blocking=true;
+$('#blockBtn').onpointerdown=()=>{blocking=true;blockStartedAt=performance.now();};
 $('#blockBtn').onpointerup=$('#blockBtn').onpointercancel=()=>blocking=false;
 $('#dodgeBtn').onclick=()=>{
   if(dodgeCd>0||dead) return;

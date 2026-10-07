@@ -1,13 +1,13 @@
-# NETHEN v0.6
+# NETHEN v0.7
 
-Aubrey's level-run build.
+Aubrey's playable Nethen build.
 
-## New in v0.6
-- winning no longer kicks you to a replay/menu choice
-- the game now progresses through multiple levels in one run
-- Level 1: drawn monster
-- Level 2: science gate
-- Level 3: lava hunter fight
-- Level 4: gingerbread boss
-- Level 5: mega version of your drawn monster
-- meat drops now magnet toward the player and auto-collect reliably
+## New in v0.7
+- combo-based melee combat with visible slash effects
+- enemy knockback, recoil, hit sparks and screen shake
+- more dangerous enemy telegraphs and a timed parry bonus
+- much bigger special attack feedback
+- new Golden Ember Hunt exploration level
+- chase and touch the Golden Ember three times to capture it
+- capturing it unlocks the Ember Core and powers up special attacks
+- run now has six stages leading to the final Mega Drawn Boss
